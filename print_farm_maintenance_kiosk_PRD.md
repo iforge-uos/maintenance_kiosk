@@ -928,7 +928,7 @@ Button hold (1 second)
 - Drive sync/export worker process
 
 ## 16.3 Data store
-- SQLite database on local disk
+- postgresQL database on local disk
 
 ## 16.4 Config files
 - `diagnosis_tree.json`
