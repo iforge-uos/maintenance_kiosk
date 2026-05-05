@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% set title = "Weekly History" %}
+
+{% block content %}
+<section class="screen history-screen">
+  <header class="kiosk-header compact">
+    <div>
+      <h1>{{ printer.name }} Weekly History</h1>
+      <span class="muted">{{ records|length }} weekly records</span>
+    </div>
+    <nav class="header-actions">
+      <a href="{{ url_for('weekly', printer_id=printer.id) }}">New Weekly</a>
+      <a href="{{ url_for('printer_detail', printer_id=printer.id) }}">Actions</a>
+    </nav>
+  </header>
+
+  <div class="history-list">
+    {% for record in records %}
+      <a class="history-card" href="{{ url_for('weekly_detail', printer_id=printer.id, event_id=record.event_id) }}">
+        <div>
+          <span class="event-type">week {{ record.week_number }}</span>
+          <strong>{{ record.semester }} {{ record.academic_year }}</strong>
+          <small>{{ record.date }} - {{ record.technician }}</small>
+          <small>{{ record.note }}</small>
+        </div>
+        <span class="state-badge">{{ record.checks_complete }}/{{ record.total_checks }}</span>
+      </a>
+    {% else %}
+      <p class="empty-state">No weekly records yet.</p>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

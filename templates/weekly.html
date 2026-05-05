@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% set title = "Weekly Maintenance" %}
+
+{% block content %}
+<section class="screen form-screen">
+  <header class="kiosk-header compact">
+    <div>
+      <h1>{{ printer.name }} Weekly</h1>
+      <span class="muted">13 week teaching semester</span>
+    </div>
+    <nav class="header-actions">
+      <a href="{{ url_for('weekly_history', printer_id=printer.id) }}">Weekly History</a>
+      <a href="{{ url_for('printer_detail', printer_id=printer.id) }}">Actions</a>
+    </nav>
+  </header>
+
+  <form class="kiosk-form weekly-layout" method="post">
+    <section class="form-panel checks-panel">
+      <div class="panel-title-row">
+        <h2>Checks</h2>
+        <button class="small-button" type="button" data-select-all>All</button>
+      </div>
+      <div class="check-grid">
+        {% for field, label in checklist_items %}
+          <label class="touch-check">
+            <input type="checkbox" name="{{ field }}">
+            <span>{{ label }}</span>
+          </label>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="form-panel meta-panel">
+      <h2>Details</h2>
+      <div class="field-row">
+        <label>
+          <span>Technician</span>
+          <select name="technician_name" required data-technician-select>
+            <option value="">Select</option>
+            {% for technician in technicians %}
+              <option>{{ technician }}</option>
+            {% endfor %}
+            <option value="Other">Other</option>
+          </select>
+        </label>
+        <label class="other-technician" hidden>
+          <span>Other</span>
+          <input name="other_technician" type="text" autocomplete="off">
+        </label>
+      </div>
+
+      <div class="field-row">
+        <label>
+          <span>Semester</span>
+          <select name="semester" required>
+            {% for semester in semesters %}
+              <option value="{{ semester.id }}">{{ semester.label }} - {{ semester.date_range }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label>
+          <span>Week</span>
+          <select name="week_number" required>
+            {% for week in weeks %}
+              <option>{{ week }}</option>
+            {% endfor %}
+          </select>
+        </label>
+      </div>
+
+      <div class="metric-grid">
+        {% for field, label, unit in metric_fields %}
+          <label>
+            <span>{{ label }}</span>
+            <input name="{{ field }}" type="number" inputmode="decimal" step="0.01" min="0" placeholder="{{ unit }}">
+          </label>
+        {% endfor %}
+      </div>
+
+      <label>
+        <span>Note</span>
+        <textarea name="note" rows="2" placeholder="Optional"></textarea>
+      </label>
+
+      <div class="save-row">
+        <button class="primary-button" type="submit" name="save_action" value="complete">Save Complete</button>
+        <button class="secondary-button" type="submit" name="save_action" value="continue">Continue Later</button>
+      </div>
+    </section>
+  </form>
+</section>
+{% endblock %}

@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% set title = "Manual Reactive Log" %}
+
+{% block content %}
+<section class="screen form-screen">
+  <header class="kiosk-header compact">
+    <div>
+      <h1>{{ printer.name }} Manual Log</h1>
+      <span class="muted">Fast path for known faults</span>
+    </div>
+    <nav class="header-actions">
+      <a href="{{ url_for('reactive_start', printer_id=printer.id) }}">Reactive Start</a>
+      <a href="{{ url_for('printer_detail', printer_id=printer.id) }}">Actions</a>
+    </nav>
+  </header>
+
+  <form class="kiosk-form manual-layout" method="post">
+    <section class="form-panel">
+      <h2>Fault</h2>
+      <label>
+        <span>Origin</span>
+        <select name="event_origin" required>
+          {% for origin in event_origins %}
+            <option>{{ origin }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        <span>Symptom</span>
+        <select name="symptom_category" required>
+          {% for category in symptom_categories %}
+            <option>{{ category }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        <span>Issue summary</span>
+        <textarea name="issue_summary" rows="3" required>{{ printer.current_fault_summary }}</textarea>
+      </label>
+      <label>
+        <span>Component</span>
+        <input name="component_involved" placeholder="Nozzle, bed, fan...">
+      </label>
+    </section>
+
+    <section class="form-panel">
+      <h2>Actions</h2>
+      <div class="check-grid compact">
+        {% for action in action_options %}
+          <label class="touch-check">
+            <input type="checkbox" name="action_taken" value="{{ action }}">
+            <span>{{ action }}</span>
+          </label>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="form-panel">
+      <h2>Result</h2>
+      <label>
+        <span>Status</span>
+        <select name="result_status" required>
+          {% for status in result_statuses %}
+            <option>{{ status }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        <span>Technician</span>
+        <select name="technician_name" required data-technician-select>
+          <option value="">Select</option>
+          {% for technician in technicians %}
+            <option>{{ technician }}</option>
+          {% endfor %}
+          <option value="Other">Other</option>
+        </select>
+      </label>
+      <label class="other-technician" hidden>
+        <span>Other technician</span>
+        <input name="other_technician" type="text" autocomplete="off">
+      </label>
+      <label>
+        <span>Dashboard fix summary</span>
+        <input name="fix_summary" required value="{{ printer.last_fix_summary }}">
+      </label>
+      <label>
+        <span>Note</span>
+        <textarea name="note" rows="2"></textarea>
+      </label>
+      <div class="save-row">
+        <button class="primary-button" type="submit">Review Summary</button>
+        <a class="danger-button" href="{{ url_for('printer_detail', printer_id=printer.id) }}">Cancel</a>
+      </div>
+    </section>
+  </form>
+</section>
+{% endblock %}

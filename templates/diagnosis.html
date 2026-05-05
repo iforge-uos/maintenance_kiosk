@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% set title = "Diagnosis" %}
+
+{% block content %}
+<section class="screen diagnosis-screen">
+  <header class="kiosk-header compact">
+    <div>
+      <h1>{{ printer.name }} Assist</h1>
+      <span class="muted">
+        {% if selected_category %}{{ selected_category[1].label }}{% else %}Choose a symptom{% endif %}
+      </span>
+    </div>
+    <nav class="header-actions">
+      <a href="{{ url_for('reactive_start', printer_id=printer.id) }}">Reactive Start</a>
+      <a href="{{ url_for('printer_detail', printer_id=printer.id) }}">Actions</a>
+    </nav>
+  </header>
+
+  {% if not selected_category %}
+    <section class="form-panel">
+      <h2>Symptom Category</h2>
+      <div class="category-grid">
+        {% for category_id, category in categories %}
+          <a href="{{ url_for('diagnosis', printer_id=printer.id, category=category_id) }}">
+            <strong>{{ category.label }}</strong>
+            <span>Start</span>
+          </a>
+        {% endfor %}
+      </div>
+    </section>
+  {% elif node.type == "question" %}
+    <section class="diagnosis-question form-panel">
+      <div class="breadcrumb-line">
+        <span>{{ selected_category[1].label }}</span>
+        {% for item in trail %}
+          <span>{{ item }}</span>
+        {% endfor %}
+      </div>
+      <h2>{{ node.text }}</h2>
+      {% if node.help_text %}
+        <p class="help-text">{{ node.help_text }}</p>
+      {% endif %}
+      <div class="answer-grid">
+        {% for option in node.options %}
+          {% set next_trail = (trail + [option.label])|join('|') %}
+          <a href="{{ url_for('diagnosis', printer_id=printer.id, category=selected_category[0], node=option.next, trail=next_trail) }}">
+            {{ option.label }}
+          </a>
+        {% endfor %}
+      </div>
+    </section>
+  {% else %}
+    <section class="diagnosis-result-layout">
+      <article class="form-panel">
+        <div class="breadcrumb-line">
+          <span>{{ selected_category[1].label }}</span>
+          {% for item in trail %}
+            <span>{{ item }}</span>
+          {% endfor %}
+        </div>
+        <h2>{{ node.label }}</h2>
+        <p class="result-description">{{ node.description }}</p>
+        <h3>Likely Causes</h3>
+        <ul class="compact-bullets">
+          {% for cause in node.likely_causes %}
+            <li>{{ cause }}</li>
+          {% endfor %}
+        </ul>
+        <h3>Recommended Actions</h3>
+        <ul class="compact-bullets">
+          {% for action in node.recommended_actions %}
+            <li>{{ action }}</li>
+          {% endfor %}
+        </ul>
+      </article>
+
+      <aside class="form-panel">
+        <h2>SOPs</h2>
+        <div class="compact-list">
+          {% for sop_id in node.sop_ids %}
+            {% set sop = sops.get(sop_id, {}) %}
+            <a href="{{ url_for('sop', slug=sop_id) }}">
+              <strong>{{ sop.title or sop_id }}</strong>
+              <span>{{ sop.description or "Open SOP" }}</span>
+            </a>
+          {% else %}
+            <p class="empty-state">No linked SOP.</p>
+          {% endfor %}
+        </div>
+        <a class="primary-action full-width-action" href="{{ url_for('reactive_summary', printer_id=printer.id, diagnosis_node=node_id) }}">Accept Diagnosis</a>
+      </aside>
+    </section>
+  {% endif %}
+</section>
+{% endblock %}

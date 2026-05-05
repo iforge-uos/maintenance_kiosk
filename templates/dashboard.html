@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% set title = "Dashboard" %}
+
+{% block content %}
+<section class="screen dashboard-screen" data-dashboard>
+  <header class="kiosk-header">
+    <div>
+      <h1>Print Farm Maintenance Kiosk</h1>
+      <span class="muted">{{ payload.total_printers }} active printers</span>
+    </div>
+    <div class="header-metrics">
+      <span class="sync-pill" data-sync-status>{{ payload.sync_status }}</span>
+      <span class="alert-pill"><b data-alert-count>{{ payload.unresolved_count }}</b> faults</span>
+      <span class="page-pill">Page {{ payload.current_page }} / {{ payload.total_pages }}</span>
+      <time data-clock>{{ payload.generated_at }}</time>
+    </div>
+  </header>
+
+  <div class="printer-grid" data-printer-grid>
+    {% for printer in payload.printers %}
+      <article class="printer-card status-{{ printer.status|lower|replace(' ', '-') }}" data-printer-card="{{ printer.id }}">
+        <a class="printer-card-button" href="{{ url_for('printer_detail', printer_id=printer.id) }}">
+          <span class="printer-name">{{ printer.name }}</span>
+          <span class="fault-text" data-fault-text>
+            {{ printer.current_fault_summary or "No active fault" }}
+          </span>
+          <span class="status-row">
+            <span class="status-badge" data-status>{{ printer.status }}</span>
+            <span class="state-badge" data-reactive-state>{{ printer.reactive_state }}</span>
+          </span>
+          <span class="date-row">
+            <span>W {{ printer.last_weekly_at }}</span>
+            <span>R {{ printer.last_reactive_at }}</span>
+          </span>
+        </a>
+      </article>
+    {% endfor %}
+  </div>
+
+  <nav class="dashboard-pager" aria-label="Dashboard pages">
+    <a class="{% if payload.current_page == 1 %}disabled{% endif %}" href="{{ url_for('dashboard', page=payload.current_page - 1) }}">Previous</a>
+    <a class="{% if payload.current_page == 1 %}active{% endif %}" href="{{ url_for('dashboard', page=1) }}">Page 1</a>
+    <a class="{% if payload.current_page == 2 %}active{% endif %}" href="{{ url_for('dashboard', page=2) }}">Page 2</a>
+    <a class="{% if payload.current_page == payload.total_pages %}disabled{% endif %}" href="{{ url_for('dashboard', page=payload.current_page + 1) }}">Next</a>
+  </nav>
+</section>
+{% endblock %}

@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% set title = "Reactive Summary" %}
+{% set prefill = quick_fix or diagnosis_prefill %}
+
+{% block content %}
+<section class="screen form-screen">
+  <header class="kiosk-header compact">
+    <div>
+      <h1>{{ printer.name }} Reactive</h1>
+      <span class="muted">Continue existing event when open</span>
+    </div>
+    <nav class="header-actions">
+      {% if quick_fix and quick_fix.sop_slug %}
+        <a href="{{ url_for('sop', slug=quick_fix.sop_slug) }}">Open SOP</a>
+      {% endif %}
+      {% if diagnosis_prefill and diagnosis_prefill.sop_ids %}
+        <a href="{{ url_for('sop', slug=diagnosis_prefill.sop_ids[0]) }}">Open SOP</a>
+      {% endif %}
+      <a href="{{ url_for('reactive_start', printer_id=printer.id) }}">Reactive Start</a>
+      <a href="{{ url_for('printer_detail', printer_id=printer.id) }}">Actions</a>
+    </nav>
+  </header>
+
+  <form class="kiosk-form reactive-layout" method="post">
+    <section class="form-panel status-panel">
+      <h2>Current Fault</h2>
+      {% if quick_fix %}
+        <p class="prefill-banner">{{ quick_fix.label }}</p>
+      {% elif diagnosis_prefill %}
+        <p class="prefill-banner">Diagnosis accepted: {{ diagnosis_prefill.diagnosis_label }}</p>
+      {% endif %}
+      <label>
+        <span>Fault summary</span>
+        <textarea name="current_fault" rows="3" required>{{ prefill.current_fault if prefill else printer.current_fault_summary }}</textarea>
+      </label>
+      <label>
+        <span>Symptom</span>
+        <select name="symptom_category" required>
+          {% for category in symptom_categories %}
+            <option {% if prefill and prefill.symptom_category == category %}selected{% endif %}>{{ category }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        <span>Component</span>
+        <input name="component_involved" value="{{ prefill.component_involved if prefill else '' }}" placeholder="Nozzle, bed, fan...">
+      </label>
+    </section>
+
+    <section class="form-panel status-panel">
+      <h2>Save Outcome</h2>
+      <label>
+        <span>Action taken</span>
+        <textarea name="action_taken" rows="3" required>{{ prefill.action_taken if prefill else '' }}</textarea>
+      </label>
+      <label>
+        <span>Result</span>
+        <select name="result_status" required>
+          {% for status in result_statuses %}
+            <option {% if prefill and prefill.result_status == status %}selected{% endif %}>{{ status }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        <span>Technician</span>
+        <select name="technician_name" required data-technician-select>
+          <option value="">Select</option>
+          {% for technician in technicians %}
+            <option>{{ technician }}</option>
+          {% endfor %}
+          <option value="Other">Other</option>
+        </select>
+      </label>
+      <label class="other-technician" hidden>
+        <span>Other technician</span>
+        <input name="other_technician" type="text" autocomplete="off">
+      </label>
+      <label>
+        <span>Dashboard fix summary</span>
+        <input name="fix_summary" required value="{{ prefill.fix_summary if prefill else printer.last_fix_summary }}">
+      </label>
+      <div class="save-row three">
+        <button class="primary-button" type="submit" name="save_action" value="available">Available</button>
+        <button class="danger-button" type="submit" name="save_action" value="unavailable">Unavailable</button>
+        <button class="secondary-button" type="submit" name="save_action" value="progress">In Progress</button>
+      </div>
+    </section>
+  </form>
+</section>
+{% endblock %}

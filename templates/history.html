@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% set title = "Full History" %}
+
+{% block content %}
+<section class="screen history-screen">
+  <header class="kiosk-header compact">
+    <div>
+      <h1>{{ printer.name }} History</h1>
+      <span class="muted">{{ events|length }} records shown</span>
+    </div>
+    <nav class="header-actions">
+      <a href="{{ url_for('weekly', printer_id=printer.id) }}">Weekly</a>
+      <a href="{{ url_for('reactive_start', printer_id=printer.id) }}">Reactive</a>
+      <a href="{{ url_for('printer_detail', printer_id=printer.id) }}">Actions</a>
+    </nav>
+  </header>
+
+  <nav class="filter-tabs" aria-label="History filters">
+    {% for value, label in [('all', 'All'), ('weekly', 'Weekly'), ('reactive', 'Reactive'), ('open', 'Open')] %}
+      <a class="{% if filter_type == value %}active{% endif %}" href="{{ url_for('history', printer_id=printer.id, filter=value) }}">{{ label }}</a>
+    {% endfor %}
+  </nav>
+
+  <div class="history-list">
+    {% for event in events %}
+      <article class="history-card type-{{ event.type }}">
+        <div>
+          <span class="event-type">{{ event.type }}</span>
+          <strong>{{ event.summary }}</strong>
+          <small>{{ event.at }} - {{ event.technician }}</small>
+        </div>
+        <span class="state-badge">{{ event.state }}</span>
+      </article>
+    {% else %}
+      <p class="empty-state">No records match this filter.</p>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

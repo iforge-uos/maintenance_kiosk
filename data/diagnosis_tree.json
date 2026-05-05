@@ -1,0 +1,1184 @@
+{
+  "version": "1.0",
+  "printer_model": "Prusa Core One",
+  "updated_at": "2026-04-21",
+  "authoring_notes": [
+    "This tree is based on ranked in-house experience for Prusa Core One plus generic FDM troubleshooting coverage.",
+    "Lower rank number means more likely cause.",
+    "Keep node IDs stable once the frontend depends on them.",
+    "All question options must point to an existing node ID."
+  ],
+  "categories": {
+    "filament_not_sticking": {
+      "label": "Filament Not Sticking",
+      "icon": "bed",
+      "start_node": "q_filament_not_sticking_1",
+      "display_order": 1
+    },
+    "filament_not_extruding": {
+      "label": "Filament Not Extruding",
+      "icon": "extruder",
+      "start_node": "q_filament_not_extruding_1",
+      "display_order": 2
+    },
+    "under_extrusion": {
+      "label": "Under Extrusion",
+      "icon": "flow",
+      "start_node": "q_under_extrusion_1",
+      "display_order": 3
+    },
+    "prints_layer_shift": {
+      "label": "Prints Layer Shift",
+      "icon": "motion",
+      "start_node": "q_layer_shift_1",
+      "display_order": 4
+    },
+    "bed_leveling_fail": {
+      "label": "Bed Leveling Fail",
+      "icon": "level",
+      "start_node": "q_bed_level_fail_1",
+      "display_order": 5
+    },
+    "unable_to_change_filament": {
+      "label": "Unable To Change Filament",
+      "icon": "filament",
+      "start_node": "q_unable_change_filament_1",
+      "display_order": 6
+    },
+    "fan_not_spinning": {
+      "label": "Fan Not Spinning",
+      "icon": "fan",
+      "start_node": "q_fan_not_spinning_1",
+      "display_order": 7
+    }
+  },
+  "nodes": {
+    "q_filament_not_sticking_1": {
+      "type": "question",
+      "text": "Is the print bed visibly dirty, greasy, or covered with old glue residue?",
+      "options": [
+        {
+          "label": "Yes",
+          "next": "d_filament_not_sticking_dirty_bed"
+        },
+        {
+          "label": "No",
+          "next": "q_filament_not_sticking_2"
+        },
+        {
+          "label": "Not sure",
+          "next": "d_filament_not_sticking_dirty_bed"
+        }
+      ],
+      "help_text": "On Core One printers, a dirty plate is one of the most common causes of poor first-layer adhesion."
+    },
+    "q_filament_not_sticking_2": {
+      "type": "question",
+      "text": "Does the first layer look too high, with poor squish or gaps between lines?",
+      "options": [
+        {
+          "label": "Yes",
+          "next": "d_filament_not_sticking_z_offset_high"
+        },
+        {
+          "label": "No",
+          "next": "q_filament_not_sticking_3"
+        },
+        {
+          "label": "Not sure",
+          "next": "d_filament_not_sticking_z_offset_high"
+        }
+      ],
+      "help_text": "Watch the first layer closely. Poor squish usually points to a bed/nozzle gap issue."
+    },
+    "q_filament_not_sticking_3": {
+      "type": "question",
+      "text": "Has the nozzle been cleaned recently before recalibration?",
+      "options": [
+        {
+          "label": "No",
+          "next": "d_filament_not_sticking_clean_nozzle"
+        },
+        {
+          "label": "Yes",
+          "next": "d_filament_not_sticking_run_calibration"
+        },
+        {
+          "label": "Not sure",
+          "next": "d_filament_not_sticking_clean_nozzle"
+        }
+      ]
+    },
+    "d_filament_not_sticking_dirty_bed": {
+      "type": "diagnosis",
+      "label": "Dirty Bed",
+      "description": "The build plate likely has grease, dust, or adhesive buildup preventing adhesion.",
+      "likely_causes": [
+        "Dirty bed"
+      ],
+      "recommended_actions": [
+        "Clean bed with IPA"
+      ],
+      "component_involved": "Print Bed",
+      "fix_summary": "Cleaned bed with IPA",
+      "sop_ids": [
+        "sop_clean_bed_ipa"
+      ],
+      "rank_hint": 1,
+      "default_result_status": "in_progress"
+    },
+    "d_filament_not_sticking_z_offset_high": {
+      "type": "diagnosis",
+      "label": "Print Head Too Far From Bed",
+      "description": "First-layer calibration likely failed or the nozzle is too far from the bed.",
+      "likely_causes": [
+        "Print head too far from bed (failed calibration)"
+      ],
+      "recommended_actions": [
+        "Clean nozzle",
+        "Run first layer calibration"
+      ],
+      "component_involved": "Print Bed / Z Offset",
+      "fix_summary": "Adjusted first layer calibration",
+      "sop_ids": [
+        "sop_clean_nozzle_tip",
+        "sop_first_layer_calibration"
+      ],
+      "rank_hint": 2,
+      "default_result_status": "in_progress"
+    },
+    "d_filament_not_sticking_clean_nozzle": {
+      "type": "diagnosis",
+      "label": "Nozzle Debris Affecting First Layer",
+      "description": "Debris on the nozzle can interfere with probing or first-layer consistency.",
+      "likely_causes": [
+        "Nozzle contamination before calibration"
+      ],
+      "recommended_actions": [
+        "Clean nozzle",
+        "Re-test first layer"
+      ],
+      "component_involved": "Nozzle / Hotend",
+      "fix_summary": "Cleaned nozzle tip",
+      "sop_ids": [
+        "sop_clean_nozzle_tip"
+      ],
+      "rank_hint": 3,
+      "default_result_status": "in_progress"
+    },
+    "d_filament_not_sticking_run_calibration": {
+      "type": "diagnosis",
+      "label": "Re-run First Layer Calibration",
+      "description": "No obvious contamination found. Re-run first-layer calibration and inspect plate condition again.",
+      "likely_causes": [
+        "Calibration drift",
+        "Minor setup issue"
+      ],
+      "recommended_actions": [
+        "Run first layer calibration",
+        "Inspect bed surface"
+      ],
+      "component_involved": "Print Bed / Z Offset",
+      "fix_summary": "Re-ran first layer calibration",
+      "sop_ids": [
+        "sop_first_layer_calibration"
+      ],
+      "rank_hint": 4,
+      "default_result_status": "in_progress"
+    },
+    "q_filament_not_extruding_1": {
+      "type": "question",
+      "text": "Is filament currently loaded into the printer?",
+      "options": [
+        {
+          "label": "No",
+          "next": "d_filament_not_extruding_not_loaded"
+        },
+        {
+          "label": "Yes",
+          "next": "q_filament_not_extruding_2"
+        },
+        {
+          "label": "Not sure",
+          "next": "d_filament_not_extruding_not_loaded"
+        }
+      ],
+      "help_text": "Start with the most common and least invasive checks first."
+    },
+    "q_filament_not_extruding_2": {
+      "type": "question",
+      "text": "Is filament present at the extruder entrance when the tube is disconnected or inspected?",
+      "options": [
+        {
+          "label": "No",
+          "next": "d_filament_not_extruding_not_in_extruder"
+        },
+        {
+          "label": "Yes",
+          "next": "q_filament_not_extruding_3"
+        },
+        {
+          "label": "Not sure",
+          "next": "d_filament_not_extruding_not_in_extruder"
+        }
+      ]
+    },
+    "q_filament_not_extruding_3": {
+      "type": "question",
+      "text": "Is the filament broken or stuck inside the extruder path?",
+      "options": [
+        {
+          "label": "Broken in extruder",
+          "next": "d_filament_not_extruding_broken_filament"
+        },
+        {
+          "label": "No obvious break",
+          "next": "q_filament_not_extruding_4"
+        },
+        {
+          "label": "Not sure",
+          "next": "q_filament_not_extruding_4"
+        }
+      ]
+    },
+    "q_filament_not_extruding_4": {
+      "type": "question",
+      "text": "When the nozzle is hot, can filament be pushed through manually?",
+      "options": [
+        {
+          "label": "No",
+          "next": "d_filament_not_extruding_nozzle_clog"
+        },
+        {
+          "label": "Yes",
+          "next": "d_filament_not_extruding_feed_issue"
+        },
+        {
+          "label": "Not tested",
+          "next": "d_filament_not_extruding_nozzle_clog"
+        }
+      ],
+      "help_text": "If it cannot be pushed through a hot nozzle, treat it as a clog branch first."
+    },
+    "d_filament_not_extruding_not_loaded": {
+      "type": "diagnosis",
+      "label": "No Filament Loaded",
+      "description": "The printer has no filament loaded.",
+      "likely_causes": [
+        "No filament loaded"
+      ],
+      "recommended_actions": [
+        "Load filament"
+      ],
+      "component_involved": "Filament Path",
+      "fix_summary": "Loaded filament",
+      "sop_ids": [
+        "sop_load_filament"
+      ],
+      "rank_hint": 1,
+      "default_result_status": "fixed_and_available"
+    },
+    "d_filament_not_extruding_not_in_extruder": {
+      "type": "diagnosis",
+      "label": "Filament Not Reaching Extruder",
+      "description": "Filament is not actually entering the extruder feed path.",
+      "likely_causes": [
+        "No filament in extruder"
+      ],
+      "recommended_actions": [
+        "Load filament from tube to extruder"
+      ],
+      "component_involved": "Filament Path / Extruder",
+      "fix_summary": "Fed filament into extruder",
+      "sop_ids": [
+        "sop_feed_filament_to_extruder"
+      ],
+      "rank_hint": 2,
+      "default_result_status": "fixed_and_available"
+    },
+    "d_filament_not_extruding_broken_filament": {
+      "type": "diagnosis",
+      "label": "Broken Filament In Extruder",
+      "description": "Filament has snapped inside the extruder path.",
+      "likely_causes": [
+        "Broken filament in extruder"
+      ],
+      "recommended_actions": [
+        "Open filament idler and remove filament"
+      ],
+      "component_involved": "Extruder / Idler",
+      "fix_summary": "Removed broken filament",
+      "sop_ids": [
+        "sop_open_idler_remove_filament"
+      ],
+      "rank_hint": 3,
+      "default_result_status": "fixed_and_available"
+    },
+    "d_filament_not_extruding_nozzle_clog": {
+      "type": "diagnosis",
+      "label": "Filament Clogged In Nozzle",
+      "description": "The nozzle is likely clogged and blocking flow.",
+      "likely_causes": [
+        "Filament clogged in nozzle"
+      ],
+      "recommended_actions": [
+        "Poke nozzle with acupuncture needle",
+        "Cold pull",
+        "Pick filament out of nozzle after heating"
+      ],
+      "component_involved": "Nozzle / Hotend",
+      "fix_summary": "Cleared nozzle clog",
+      "sop_ids": [
+        "sop_nozzle_needle_clean",
+        "sop_cold_pull"
+      ],
+      "rank_hint": 4,
+      "default_result_status": "fixed_and_available"
+    },
+    "d_filament_not_extruding_feed_issue": {
+      "type": "diagnosis",
+      "label": "Extruder Feed Issue",
+      "description": "The nozzle appears open enough for manual push, so focus on loading or feeder grip issues.",
+      "likely_causes": [
+        "Filament loading issue",
+        "Extruder feed issue"
+      ],
+      "recommended_actions": [
+        "Reload filament",
+        "Inspect extruder feeder and idler"
+      ],
+      "component_involved": "Extruder",
+      "fix_summary": "Resolved extruder feed issue",
+      "sop_ids": [
+        "sop_load_filament",
+        "sop_disassemble_feeder"
+      ],
+      "rank_hint": 5,
+      "default_result_status": "in_progress"
+    },
+    "q_under_extrusion_1": {
+      "type": "question",
+      "text": "Is there visible debris or partial blockage at the nozzle tip or in extrusion quality?",
+      "options": [
+        {
+          "label": "Yes",
+          "next": "d_under_extrusion_debris_nozzle"
+        },
+        {
+          "label": "No",
+          "next": "q_under_extrusion_2"
+        },
+        {
+          "label": "Not sure",
+          "next": "d_under_extrusion_debris_nozzle"
+        }
+      ],
+      "help_text": "Your ranking puts nozzle debris as the most likely cause."
+    },
+    "q_under_extrusion_2": {
+      "type": "question",
+      "text": "Does extrusion improve when nozzle temperature is increased slightly within the filament range?",
+      "options": [
+        {
+          "label": "Yes",
+          "next": "d_under_extrusion_low_temp"
+        },
+        {
+          "label": "No",
+          "next": "d_under_extrusion_general_path_check"
+        },
+        {
+          "label": "Not tested",
+          "next": "d_under_extrusion_low_temp"
+        }
+      ]
+    },
+    "d_under_extrusion_debris_nozzle": {
+      "type": "diagnosis",
+      "label": "Debris In Nozzle",
+      "description": "A partial blockage or debris in the nozzle is the most likely cause.",
+      "likely_causes": [
+        "Debris in nozzle"
+      ],
+      "recommended_actions": [
+        "Poke nozzle with needle",
+        "Re-test extrusion"
+      ],
+      "component_involved": "Nozzle / Hotend",
+      "fix_summary": "Cleared nozzle debris",
+      "sop_ids": [
+        "sop_nozzle_needle_clean"
+      ],
+      "rank_hint": 1,
+      "default_result_status": "fixed_and_available"
+    },
+    "d_under_extrusion_low_temp": {
+      "type": "diagnosis",
+      "label": "Nozzle Temperature Too Low",
+      "description": "If extrusion improves with more heat, the nozzle may be too cold for the filament/material state.",
+      "likely_causes": [
+        "Low nozzle temperature",
+        "Material profile mismatch"
+      ],
+      "recommended_actions": [
+        "Increase print temperature"
+      ],
+      "component_involved": "Hotend / Material Profile",
+      "fix_summary": "Raised print temperature",
+      "sop_ids": [
+        "sop_raise_nozzle_temp"
+      ],
+      "rank_hint": 2,
+      "default_result_status": "fixed_and_available"
+    },
+    "d_under_extrusion_general_path_check": {
+      "type": "diagnosis",
+      "label": "General Filament Path Restriction",
+      "description": "If it is not clearly temperature-related, inspect the broader filament path and feeder.",
+      "likely_causes": [
+        "Extruder feed issue",
+        "Filament path resistance",
+        "Partial clog"
+      ],
+      "recommended_actions": [
+        "Inspect filament path",
+        "Clean extruder gear",
+        "Retry cold pull if needed"
+      ],
+      "component_involved": "Extruder / Filament Path",
+      "fix_summary": "Checked filament path for restriction",
+      "sop_ids": [
+        "sop_cold_pull",
+        "sop_disassemble_feeder"
+      ],
+      "rank_hint": 3,
+      "default_result_status": "in_progress"
+    },
+    "q_layer_shift_1": {
+      "type": "question",
+      "text": "Is the chamber unusually hot or poorly ventilated during the print?",
+      "options": [
+        {
+          "label": "Yes",
+          "next": "d_layer_shift_hot_chamber"
+        },
+        {
+          "label": "No",
+          "next": "q_layer_shift_2"
+        },
+        {
+          "label": "Not sure",
+          "next": "d_layer_shift_hot_chamber"
+        }
+      ],
+      "help_text": "Your ranking puts high chamber temperature first."
+    },
+    "q_layer_shift_2": {
+      "type": "question",
+      "text": "Was the print running unusually fast for the model or material?",
+      "options": [
+        {
+          "label": "Yes",
+          "next": "d_layer_shift_print_too_fast"
+        },
+        {
+          "label": "No",
+          "next": "q_layer_shift_3"
+        },
+        {
+          "label": "Not sure",
+          "next": "d_layer_shift_print_too_fast"
+        }
+      ]
+    },
+    "q_layer_shift_3": {
+      "type": "question",
+      "text": "Are supports missing or are curled-up features crashing into the nozzle?",
+      "options": [
+        {
+          "label": "Yes",
+          "next": "d_layer_shift_supports"
+        },
+        {
+          "label": "No",
+          "next": "q_layer_shift_4"
+        },
+        {
+          "label": "Not sure",
+          "next": "q_layer_shift_4"
+        }
+      ]
+    },
+    "q_layer_shift_4": {
+      "type": "question",
+      "text": "Do belts feel loose or overly tight when checked manually?",
+      "options": [
+        {
+          "label": "Yes",
+          "next": "d_layer_shift_belt_tension"
+        },
+        {
+          "label": "No",
+          "next": "d_layer_shift_overlap_or_overextrusion"
+        },
+        {
+          "label": "Not sure",
+          "next": "d_layer_shift_belt_tension"
+        }
+      ],
+      "help_text": "Incorrect belt tension is a common mechanical cause of shifting."
+    },
+    "d_layer_shift_hot_chamber": {
+      "type": "diagnosis",
+      "label": "High Chamber Temperature",
+      "description": "Excessive chamber heat may contribute to print issues that lead to shifts or collisions.",
+      "likely_causes": [
+        "High chamber temperature"
+      ],
+      "recommended_actions": [
+        "Turn on chamber fan"
+      ],
+      "component_involved": "Chamber / Cooling",
+      "fix_summary": "Turned on chamber fan",
+      "sop_ids": [
+        "sop_chamber_fan_on"
+      ],
+      "rank_hint": 1,
+      "default_result_status": "fixed_and_available"
+    },
+    "d_layer_shift_print_too_fast": {
+      "type": "diagnosis",
+      "label": "Print Too Fast",
+      "description": "Motion stability or cooling may be inadequate at the current speed.",
+      "likely_causes": [
+        "Print too fast"
+      ],
+      "recommended_actions": [
+        "Lower print speed"
+      ],
+      "component_involved": "Motion / Slicer",
+      "fix_summary": "Reduced print speed",
+      "sop_ids": [
+        "sop_reduce_print_speed"
+      ],
+      "rank_hint": 2,
+      "default_result_status": "fixed_and_available"
+    },
+    "d_layer_shift_supports": {
+      "type": "diagnosis",
+      "label": "Insufficient Supports / Curling Features",
+      "description": "A curled feature or unsupported overhang may have been hit by the nozzle.",
+      "likely_causes": [
+        "Prints curl up & insufficient supports"
+      ],
+      "recommended_actions": [
+        "Re-slice with supports"
+      ],
+      "component_involved": "Model / Slicer",
+      "fix_summary": "Added supports in slicer",
+      "sop_ids": [
+        "sop_add_supports"
+      ],
+      "rank_hint": 3,
+      "default_result_status": "fixed_and_available"
+    },
+    "d_layer_shift_belt_tension": {
+      "type": "diagnosis",
+      "label": "Incorrect Belt Tension",
+      "description": "Belts may be too loose or too tight, causing skipped or inaccurate motion.",
+      "likely_causes": [
+        "Incorrect belt tension"
+      ],
+      "recommended_actions": [
+        "Tighten or loosen belt to correct tension"
+      ],
+      "component_involved": "Belts / Motion System",
+      "fix_summary": "Adjusted belt tension",
+      "sop_ids": [
+        "sop_adjust_belt_tension"
+      ],
+      "rank_hint": 4,
+      "default_result_status": "fixed_and_available"
+    },
+    "d_layer_shift_overlap_or_overextrusion": {
+      "type": "diagnosis",
+      "label": "Model Overlap / Over-Extrusion Check",
+      "description": "If the usual mechanical checks are okay, inspect the slice for overlap or abnormal over-extrusion conditions.",
+      "likely_causes": [
+        "Over extrusion"
+      ],
+      "recommended_actions": [
+        "Re-slice with no objects overlapping"
+      ],
+      "component_involved": "Slicer / Flow",
+      "fix_summary": "Checked slice for overlap",
+      "sop_ids": [
+        "sop_check_model_overlap"
+      ],
+      "rank_hint": 5,
+      "default_result_status": "in_progress"
+    },
+    "q_bed_level_fail_1": {
+      "type": "question",
+      "text": "Is the bed seated correctly and placed in the correct position?",
+      "options": [
+        {
+          "label": "No",
+          "next": "d_bed_level_fail_bed_position"
+        },
+        {
+          "label": "Yes",
+          "next": "q_bed_level_fail_2"
+        },
+        {
+          "label": "Not sure",
+          "next": "d_bed_level_fail_bed_position"
+        }
+      ],
+      "help_text": "Check the simplest mechanical mistake first."
+    },
+    "q_bed_level_fail_2": {
+      "type": "question",
+      "text": "Is there debris on the bed surface?",
+      "options": [
+        {
+          "label": "Yes",
+          "next": "d_bed_level_fail_debris_bed"
+        },
+        {
+          "label": "No",
+          "next": "q_bed_level_fail_3"
+        },
+        {
+          "label": "Not sure",
+          "next": "d_bed_level_fail_debris_bed"
+        }
+      ]
+    },
+    "q_bed_level_fail_3": {
+      "type": "question",
+      "text": "Is there debris on the nozzle tip that could affect probing or first layer sensing?",
+      "options": [
+        {
+          "label": "Yes",
+          "next": "d_bed_level_fail_debris_nozzle"
+        },
+        {
+          "label": "No",
+          "next": "d_bed_level_fail_unleveled_bed"
+        },
+        {
+          "label": "Not sure",
+          "next": "d_bed_level_fail_debris_nozzle"
+        }
+      ]
+    },
+    "d_bed_level_fail_bed_position": {
+      "type": "diagnosis",
+      "label": "Incorrectly Placed Bed",
+      "description": "The bed may not be seated or positioned correctly.",
+      "likely_causes": [
+        "Incorrect placed bed"
+      ],
+      "recommended_actions": [
+        "Correct bed position"
+      ],
+      "component_involved": "Print Bed",
+      "fix_summary": "Corrected bed position",
+      "sop_ids": [
+        "sop_correct_bed_position"
+      ],
+      "rank_hint": 1,
+      "default_result_status": "fixed_and_available"
+    },
+    "d_bed_level_fail_debris_bed": {
+      "type": "diagnosis",
+      "label": "Debris On Bed",
+      "description": "Surface debris is interfering with bed leveling or first layer setup.",
+      "likely_causes": [
+        "Debris on bed"
+      ],
+      "recommended_actions": [
+        "Clean bed"
+      ],
+      "component_involved": "Print Bed",
+      "fix_summary": "Cleaned bed",
+      "sop_ids": [
+        "sop_clean_bed_ipa"
+      ],
+      "rank_hint": 2,
+      "default_result_status": "fixed_and_available"
+    },
+    "d_bed_level_fail_debris_nozzle": {
+      "type": "diagnosis",
+      "label": "Debris On Nozzle",
+      "description": "Debris on the nozzle can cause false offsets or bad calibration.",
+      "likely_causes": [
+        "Debris on nozzle"
+      ],
+      "recommended_actions": [
+        "Clean nozzle"
+      ],
+      "component_involved": "Nozzle / Hotend",
+      "fix_summary": "Cleaned nozzle tip",
+      "sop_ids": [
+        "sop_clean_nozzle_tip"
+      ],
+      "rank_hint": 3,
+      "default_result_status": "fixed_and_available"
+    },
+    "d_bed_level_fail_unleveled_bed": {
+      "type": "diagnosis",
+      "label": "Bed Needs Manual Reset / Re-Level",
+      "description": "If bed and nozzle are clean and positioned correctly, reset and manually level the bed.",
+      "likely_causes": [
+        "Unleveled bed"
+      ],
+      "recommended_actions": [
+        "Disable stepper and manually screw bed all the way to bottom"
+      ],
+      "component_involved": "Print Bed / Leveling",
+      "fix_summary": "Reset and releveled bed",
+      "sop_ids": [
+        "sop_manual_bed_level"
+      ],
+      "rank_hint": 4,
+      "default_result_status": "in_progress"
+    },
+    "q_unable_change_filament_1": {
+      "type": "question",
+      "text": "Is the filament physically unable to pull out from the hotend side during unload?",
+      "options": [
+        {
+          "label": "Yes",
+          "next": "d_unable_change_filament_pull_both_sides"
+        },
+        {
+          "label": "No",
+          "next": "q_unable_change_filament_2"
+        },
+        {
+          "label": "Not sure",
+          "next": "d_unable_change_filament_pull_both_sides"
+        }
+      ],
+      "help_text": "Start with the least invasive recovery method."
+    },
+    "q_unable_change_filament_2": {
+      "type": "question",
+      "text": "Has the filament broken inside the tube?",
+      "options": [
+        {
+          "label": "Yes",
+          "next": "d_unable_change_filament_broken_tube"
+        },
+        {
+          "label": "No",
+          "next": "q_unable_change_filament_3"
+        },
+        {
+          "label": "Not sure",
+          "next": "q_unable_change_filament_3"
+        }
+      ]
+    },
+    "q_unable_change_filament_3": {
+      "type": "question",
+      "text": "Is the filament stuck inside the nozzle/hotend?",
+      "options": [
+        {
+          "label": "Yes",
+          "next": "d_unable_change_filament_stuck_nozzle"
+        },
+        {
+          "label": "No",
+          "next": "d_unable_change_filament_feeder_issue"
+        },
+        {
+          "label": "Not sure",
+          "next": "d_unable_change_filament_feeder_issue"
+        }
+      ]
+    },
+    "d_unable_change_filament_pull_both_sides": {
+      "type": "diagnosis",
+      "label": "Filament Unable To Pull Out",
+      "description": "The filament is stuck but may still be freed by controlled pulling from accessible sides.",
+      "likely_causes": [
+        "Filament unable to pull out"
+      ],
+      "recommended_actions": [
+        "Pull filament from both side"
+      ],
+      "component_involved": "Filament Path",
+      "fix_summary": "Freed stuck filament",
+      "sop_ids": [
+        "sop_pull_filament_both_sides"
+      ],
+      "rank_hint": 1,
+      "default_result_status": "fixed_and_available"
+    },
+    "d_unable_change_filament_broken_tube": {
+      "type": "diagnosis",
+      "label": "Filament Broke In Tube",
+      "description": "A broken piece remains trapped in the tube/path.",
+      "likely_causes": [
+        "Filament broke in tube"
+      ],
+      "recommended_actions": [
+        "Feed filament from one side, and push broken filament out from the other side"
+      ],
+      "component_involved": "Filament Tube / Path",
+      "fix_summary": "Pushed broken filament out of tube",
+      "sop_ids": [
+        "sop_push_broken_filament_out"
+      ],
+      "rank_hint": 2,
+      "default_result_status": "fixed_and_available"
+    },
+    "d_unable_change_filament_stuck_nozzle": {
+      "type": "diagnosis",
+      "label": "Filament Stuck Inside Nozzle",
+      "description": "The material is jammed inside the nozzle or hotend.",
+      "likely_causes": [
+        "Filament stuck inside nozzle"
+      ],
+      "recommended_actions": [
+        "Take nozzle out and clean filament out with heated air gun"
+      ],
+      "component_involved": "Nozzle / Hotend",
+      "fix_summary": "Cleared stuck filament from nozzle",
+      "sop_ids": [
+        "sop_hot_air_clean_nozzle"
+      ],
+      "rank_hint": 3,
+      "default_result_status": "in_progress"
+    },
+    "d_unable_change_filament_feeder_issue": {
+      "type": "diagnosis",
+      "label": "Filament Feeder Obstruction",
+      "description": "If tube and nozzle paths are not the issue, open the feeder and inspect the path.",
+      "likely_causes": [
+        "Filament unable to feed into tube"
+      ],
+      "recommended_actions": [
+        "Disassemble filament feeder"
+      ],
+      "component_involved": "Filament Feeder",
+      "fix_summary": "Disassembled filament feeder",
+      "sop_ids": [
+        "sop_disassemble_feeder"
+      ],
+      "rank_hint": 4,
+      "default_result_status": "in_progress"
+    },
+    "q_fan_not_spinning_1": {
+      "type": "question",
+      "text": "Is there visible debris blocking the fan blades?",
+      "options": [
+        {
+          "label": "Yes",
+          "next": "d_fan_not_spinning_debris"
+        },
+        {
+          "label": "No",
+          "next": "q_fan_not_spinning_2"
+        },
+        {
+          "label": "Not sure",
+          "next": "d_fan_not_spinning_debris"
+        }
+      ]
+    },
+    "q_fan_not_spinning_2": {
+      "type": "question",
+      "text": "Is the fan cable disconnected or loose at the board/fan end?",
+      "options": [
+        {
+          "label": "Yes",
+          "next": "d_fan_not_spinning_cable"
+        },
+        {
+          "label": "No",
+          "next": "d_fan_not_spinning_broken"
+        },
+        {
+          "label": "Not sure",
+          "next": "d_fan_not_spinning_cable"
+        }
+      ]
+    },
+    "d_fan_not_spinning_debris": {
+      "type": "diagnosis",
+      "label": "Debris In Fan",
+      "description": "Debris is preventing the fan from rotating properly.",
+      "likely_causes": [
+        "Debris in fans"
+      ],
+      "recommended_actions": [
+        "Clean debris out from fan"
+      ],
+      "component_involved": "Fan",
+      "fix_summary": "Cleaned fan debris",
+      "sop_ids": [
+        "sop_clean_fan"
+      ],
+      "rank_hint": 1,
+      "default_result_status": "fixed_and_available"
+    },
+    "d_fan_not_spinning_cable": {
+      "type": "diagnosis",
+      "label": "Fan Cable Disconnected",
+      "description": "The fan connection may be loose or disconnected.",
+      "likely_causes": [
+        "Fan cable disconnected"
+      ],
+      "recommended_actions": [
+        "Open board and reconnect"
+      ],
+      "component_involved": "Fan / Wiring",
+      "fix_summary": "Reconnected fan cable",
+      "sop_ids": [
+        "sop_reconnect_fan_cable"
+      ],
+      "rank_hint": 2,
+      "default_result_status": "fixed_and_available"
+    },
+    "d_fan_not_spinning_broken": {
+      "type": "diagnosis",
+      "label": "Fan Failed",
+      "description": "If it is clean and connected but still not spinning, the fan is likely faulty.",
+      "likely_causes": [
+        "Fan broke"
+      ],
+      "recommended_actions": [
+        "Replace to new fan"
+      ],
+      "component_involved": "Fan",
+      "fix_summary": "Replaced fan",
+      "sop_ids": [
+        "sop_replace_fan"
+      ],
+      "rank_hint": 3,
+      "default_result_status": "fixed_and_available"
+    }
+  },
+  "sops": {
+    "sop_clean_bed_ipa": {
+      "title": "Clean Bed With IPA",
+      "description": "Wipe the build surface thoroughly with IPA and a lint-free cloth.",
+      "file": "/sops/sop_clean_bed_ipa.pdf",
+      "tags": [
+        "bed",
+        "adhesion",
+        "cleaning"
+      ]
+    },
+    "sop_clean_nozzle_tip": {
+      "title": "Clean Nozzle Tip",
+      "description": "Remove debris from the nozzle tip safely before calibration or printing.",
+      "file": "/sops/sop_clean_nozzle_tip.pdf",
+      "tags": [
+        "nozzle",
+        "cleaning"
+      ]
+    },
+    "sop_first_layer_calibration": {
+      "title": "First Layer Calibration",
+      "description": "Check bed condition and run first-layer or Z-offset calibration.",
+      "file": "/sops/sop_first_layer_calibration.pdf",
+      "tags": [
+        "bed",
+        "z-offset",
+        "calibration"
+      ]
+    },
+    "sop_load_filament": {
+      "title": "Load Filament",
+      "description": "Load filament correctly through the feeder and extruder path.",
+      "file": "/sops/sop_load_filament.pdf",
+      "tags": [
+        "filament",
+        "loading"
+      ]
+    },
+    "sop_feed_filament_to_extruder": {
+      "title": "Feed Filament To Extruder",
+      "description": "Guide filament from PTFE path or inlet into the extruder correctly.",
+      "file": "/sops/sop_feed_filament_to_extruder.pdf",
+      "tags": [
+        "filament",
+        "extruder"
+      ]
+    },
+    "sop_open_idler_remove_filament": {
+      "title": "Open Idler And Remove Filament",
+      "description": "Open the idler and remove broken or jammed filament safely.",
+      "file": "/sops/sop_open_idler_remove_filament.pdf",
+      "tags": [
+        "extruder",
+        "idler",
+        "filament"
+      ]
+    },
+    "sop_nozzle_needle_clean": {
+      "title": "Needle Clean Nozzle",
+      "description": "Heat appropriately and use a nozzle needle to clear a simple blockage.",
+      "file": "/sops/sop_nozzle_needle_clean.pdf",
+      "tags": [
+        "nozzle",
+        "clog"
+      ]
+    },
+    "sop_cold_pull": {
+      "title": "Cold Pull Procedure",
+      "description": "Perform a cold pull to remove internal debris from the hotend.",
+      "file": "/sops/sop_cold_pull.pdf",
+      "tags": [
+        "hotend",
+        "clog"
+      ]
+    },
+    "sop_raise_nozzle_temp": {
+      "title": "Raise Nozzle Temperature",
+      "description": "Increase nozzle temperature within material-safe range and re-test extrusion.",
+      "file": "/sops/sop_raise_nozzle_temp.pdf",
+      "tags": [
+        "temperature",
+        "extrusion"
+      ]
+    },
+    "sop_chamber_fan_on": {
+      "title": "Turn On Chamber Fan",
+      "description": "Enable chamber ventilation to reduce internal temperature.",
+      "file": "/sops/sop_chamber_fan_on.pdf",
+      "tags": [
+        "chamber",
+        "cooling"
+      ]
+    },
+    "sop_reduce_print_speed": {
+      "title": "Reduce Print Speed",
+      "description": "Lower print speed and re-test for stability.",
+      "file": "/sops/sop_reduce_print_speed.pdf",
+      "tags": [
+        "speed",
+        "motion",
+        "quality"
+      ]
+    },
+    "sop_add_supports": {
+      "title": "Re-slice With Supports",
+      "description": "Add adequate supports and re-slice the model.",
+      "file": "/sops/sop_add_supports.pdf",
+      "tags": [
+        "supports",
+        "slicer"
+      ]
+    },
+    "sop_adjust_belt_tension": {
+      "title": "Adjust Belt Tension",
+      "description": "Check and correct belt tension without overtightening.",
+      "file": "/sops/sop_adjust_belt_tension.pdf",
+      "tags": [
+        "belts",
+        "motion"
+      ]
+    },
+    "sop_check_model_overlap": {
+      "title": "Check Model Overlap / Over-Extrusion",
+      "description": "Inspect slice for overlapping objects or abnormal flow conditions.",
+      "file": "/sops/sop_check_model_overlap.pdf",
+      "tags": [
+        "slicer",
+        "flow"
+      ]
+    },
+    "sop_correct_bed_position": {
+      "title": "Correct Bed Position",
+      "description": "Re-seat the bed correctly before leveling.",
+      "file": "/sops/sop_correct_bed_position.pdf",
+      "tags": [
+        "bed",
+        "mechanical"
+      ]
+    },
+    "sop_manual_bed_level": {
+      "title": "Manual Bed Level Reset",
+      "description": "Disable steppers and manually reset/level the bed.",
+      "file": "/sops/sop_manual_bed_level.pdf",
+      "tags": [
+        "bed",
+        "leveling"
+      ]
+    },
+    "sop_pull_filament_both_sides": {
+      "title": "Pull Filament From Both Sides",
+      "description": "Free filament by pulling gently from accessible sides.",
+      "file": "/sops/sop_pull_filament_both_sides.pdf",
+      "tags": [
+        "filament",
+        "unload"
+      ]
+    },
+    "sop_push_broken_filament_out": {
+      "title": "Push Broken Filament Out",
+      "description": "Use intact filament from one side to push the broken piece through.",
+      "file": "/sops/sop_push_broken_filament_out.pdf",
+      "tags": [
+        "filament",
+        "tube"
+      ]
+    },
+    "sop_hot_air_clean_nozzle": {
+      "title": "Hot Air Clean Nozzle",
+      "description": "Remove nozzle and clear stuck filament using hot air carefully.",
+      "file": "/sops/sop_hot_air_clean_nozzle.pdf",
+      "tags": [
+        "nozzle",
+        "filament",
+        "service"
+      ]
+    },
+    "sop_disassemble_feeder": {
+      "title": "Disassemble Filament Feeder",
+      "description": "Open the feeder to clear path issues preventing filament insertion.",
+      "file": "/sops/sop_disassemble_feeder.pdf",
+      "tags": [
+        "feeder",
+        "filament"
+      ]
+    },
+    "sop_clean_fan": {
+      "title": "Clean Fan Debris",
+      "description": "Remove debris preventing the fan from spinning freely.",
+      "file": "/sops/sop_clean_fan.pdf",
+      "tags": [
+        "fan",
+        "cleaning"
+      ]
+    },
+    "sop_reconnect_fan_cable": {
+      "title": "Reconnect Fan Cable",
+      "description": "Inspect board and fan connection, then reconnect securely.",
+      "file": "/sops/sop_reconnect_fan_cable.pdf",
+      "tags": [
+        "fan",
+        "wiring"
+      ]
+    },
+    "sop_replace_fan": {
+      "title": "Replace Fan",
+      "description": "Swap failed fan with a known-good replacement.",
+      "file": "/sops/sop_replace_fan.pdf",
+      "tags": [
+        "fan",
+        "replacement"
+      ]
+    }
+  },
+  "shortcuts_hint": [
+    "Use diagnosis result fields to prefill manual reactive maintenance logging.",
+    "Diagnosis node 'fix_summary' is suitable for dashboard summary text."
+  ]
+}

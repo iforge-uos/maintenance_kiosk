@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% set title = "Weekly Detail" %}
+
+{% block content %}
+<section class="screen detail-screen">
+  <header class="kiosk-header compact">
+    <div>
+      <h1>{{ printer.name }} Week {{ record.week_number }}</h1>
+      <span class="muted">{{ record.date }} - {{ record.technician }}</span>
+    </div>
+    <nav class="header-actions">
+      <a href="{{ url_for('weekly_history', printer_id=printer.id) }}">Weekly History</a>
+      <a href="{{ url_for('printer_detail', printer_id=printer.id) }}">Actions</a>
+    </nav>
+  </header>
+
+  <div class="weekly-detail-layout">
+    <section class="form-panel">
+      <h2>Checks</h2>
+      <div class="readonly-checks">
+        {% for label, checked in record.checklist.items() %}
+          <div class="readonly-check {% if checked %}done{% endif %}">
+            <span>{{ "OK" if checked else "!" }}</span>
+            <strong>{{ label }}</strong>
+          </div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="form-panel">
+      <h2>Metrics</h2>
+      <dl class="metric-list">
+        {% for label, value in record.metrics.items() %}
+          <div><dt>{{ label }}</dt><dd>{{ value }}</dd></div>
+        {% endfor %}
+      </dl>
+      <h2>Note</h2>
+      <p class="note-box">{{ record.note or "No note." }}</p>
+    </section>
+  </div>
+</section>
+{% endblock %}

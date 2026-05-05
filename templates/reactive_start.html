@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% set title = "Reactive Start" %}
+
+{% block content %}
+<section class="screen form-screen">
+  <header class="kiosk-header compact">
+    <div>
+      <h1>{{ printer.name }} Reactive Start</h1>
+      <span class="muted">{{ printer.status }} - {{ printer.reactive_state }}</span>
+    </div>
+    <nav class="header-actions">
+      <a href="{{ url_for('printer_detail', printer_id=printer.id) }}">Actions</a>
+      <a href="{{ url_for('dashboard') }}">Dashboard</a>
+    </nav>
+  </header>
+
+  <form class="kiosk-form start-layout" method="post">
+    <section class="form-panel">
+      <h2>Event</h2>
+      {% if printer.has_open_fault %}
+        <p class="prefill-banner">Open event will be continued instead of creating a duplicate.</p>
+      {% endif %}
+      <label>
+        <span>Origin</span>
+        <select name="event_origin" required>
+          {% for origin in event_origins %}
+            <option>{{ origin }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        <span>Symptom</span>
+        <select name="symptom_category" required>
+          {% for category_id, category in categories %}
+            <option value="{{ category_id }}">{{ category.label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        <span>Current state</span>
+        <select name="urgency_state" required>
+          {% for state in urgency_states %}
+            <option>{{ state }}</option>
+          {% endfor %}
+        </select>
+      </label>
+    </section>
+
+    <section class="form-panel">
+      <h2>Issue</h2>
+      <label>
+        <span>Short summary</span>
+        <input name="issue_summary" required value="{{ printer.current_fault_summary }}">
+      </label>
+      <label>
+        <span>Optional note</span>
+        <textarea name="note" rows="4" placeholder="Extra context"></textarea>
+      </label>
+      <div class="save-row three">
+        <button class="primary-button" type="submit" name="next_action" value="diagnosis">Start Diagnosis</button>
+        <button class="secondary-button" type="submit" name="next_action" value="manual">Manual Log</button>
+        <button class="danger-button" type="submit" name="next_action" value="cancel">Cancel</button>
+      </div>
+    </section>
+  </form>
+</section>
+{% endblock %}

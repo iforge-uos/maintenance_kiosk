@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% set title = printer.name %}
+
+{% block content %}
+<section class="screen detail-screen">
+  <header class="kiosk-header compact">
+    <div>
+      <h1>{{ printer.name }}</h1>
+      <span class="muted">{{ printer.status }} - {{ printer.reactive_state }}</span>
+    </div>
+    <nav class="header-actions">
+      <a href="{{ url_for('dashboard') }}">Dashboard</a>
+    </nav>
+  </header>
+
+  <div class="detail-layout">
+    <section class="form-panel printer-status-panel status-{{ printer.status|lower|replace(' ', '-') }}">
+      <h2>Current Fault</h2>
+      <p class="big-fault">{{ printer.current_fault_summary or "No active fault" }}</p>
+      <div class="status-row spaced">
+        <span class="status-badge">{{ printer.status }}</span>
+        <span class="state-badge">{{ printer.reactive_state }}</span>
+      </div>
+      <dl class="mini-stats">
+        <div><dt>Weekly</dt><dd>{{ printer.last_weekly_at }}</dd></div>
+        <div><dt>Reactive</dt><dd>{{ printer.last_reactive_at }}</dd></div>
+        <div><dt>Last Fix</dt><dd>{{ printer.last_fix_summary }}</dd></div>
+      </dl>
+    </section>
+
+    <section class="form-panel action-menu-panel">
+      <h2>Actions</h2>
+      <div class="action-grid">
+        <a class="primary-action" href="{{ url_for('weekly', printer_id=printer.id) }}">Weekly Maintenance</a>
+        <a class="primary-action warn" href="{{ url_for('reactive_start', printer_id=printer.id) }}">Reactive Start</a>
+        <a class="primary-action" href="{{ url_for('weekly_history', printer_id=printer.id) }}">Weekly History</a>
+        <a class="primary-action" href="{{ url_for('history', printer_id=printer.id) }}">Full History</a>
+        <a class="primary-action" href="{{ url_for('diagnosis', printer_id=printer.id) }}">Assist</a>
+        <a class="primary-action" href="{{ url_for('manual_log', printer_id=printer.id) }}">Manual Log</a>
+      </div>
+
+      <h3>Quick Fix</h3>
+      <div class="quick-fix-grid">
+        {% for fix in quick_fixes %}
+          <a href="{{ url_for('reactive_summary', printer_id=printer.id, quick_fix=fix.id) }}">{{ fix.label }}</a>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="form-panel recent-panel">
+      <h2>Recent</h2>
+      <div class="compact-list">
+        {% for event in recent_history %}
+          <a href="{{ url_for('history', printer_id=printer.id, filter=event.type) }}">
+            <strong>{{ event.summary }}</strong>
+            <span>{{ event.at }} - {{ event.state }}</span>
+          </a>
+        {% else %}
+          <p class="empty-state">No history yet.</p>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="form-panel sop-panel">
+      <h2>Diagnosis SOPs</h2>
+      <div class="compact-list two-col">
+        {% for category_id, category in categories %}
+          <a href="{{ url_for('diagnosis', printer_id=printer.id, category=category_id) }}">
+            <strong>{{ category.label }}</strong>
+            <span>Start assistant</span>
+          </a>
+        {% endfor %}
+      </div>
+    </section>
+  </div>
+</section>
+{% endblock %}
