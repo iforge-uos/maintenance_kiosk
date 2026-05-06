@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+import backend
 from flask import Flask, abort, jsonify, redirect, render_template, request, url_for
 from markupsafe import Markup, escape
 
@@ -439,11 +439,13 @@ WEEKLY_RECORDS = {
     ],
 }
 
+backend.init_database(PRINTERS, WEEKLY_RECORDS, HISTORY)
+
 
 def find_printer(printer_id: int) -> dict[str, Any]:
-    for printer in PRINTERS:
-        if printer["id"] == printer_id:
-            return printer
+    printer = backend.find_printer(printer_id)
+    if printer:
+        return printer
     abort(404)
 
 
@@ -460,31 +462,14 @@ def diagnosis_categories() -> list[tuple[str, dict[str, Any]]]:
 
 
 def find_weekly_record(printer_id: int, event_id: str) -> dict[str, Any]:
-    for record in WEEKLY_RECORDS.get(printer_id, []):
-        if record["event_id"] == event_id:
-            return record
+    record = backend.find_weekly_record(printer_id, event_id)
+    if record:
+        return record
     abort(404)
 
 
 def full_history_events(printer_id: int) -> list[dict[str, Any]]:
-    events = [event.copy() for event in HISTORY.get(printer_id, [])]
-    known_weekly_ids = {event.get("id") for event in events if event.get("type") == "weekly"}
-
-    for record in WEEKLY_RECORDS.get(printer_id, []):
-        if record["event_id"] in known_weekly_ids:
-            continue
-        events.append(
-            {
-                "id": record["event_id"],
-                "type": "weekly",
-                "at": record["date"],
-                "technician": record["technician"],
-                "summary": f"Week {record['week_number']} maintenance complete, {record['checks_complete']}/{record['total_checks']} checks",
-                "state": "Complete",
-            }
-        )
-
-    return sorted(events, key=lambda event: event["at"], reverse=True)
+    return backend.full_history_events(printer_id)
 
 
 def sop_lookup(slug: str) -> dict[str, Any] | None:
@@ -516,21 +501,7 @@ def diagnosis_result_prefill(node: dict[str, Any] | None) -> dict[str, Any] | No
 
 
 def get_dashboard_payload(page: int = 1) -> dict[str, Any]:
-    unresolved_count = sum(1 for printer in PRINTERS if printer["has_open_fault"])
-    total_pages = max(1, (len(PRINTERS) + DASHBOARD_PAGE_SIZE - 1) // DASHBOARD_PAGE_SIZE)
-    page = min(max(page, 1), total_pages)
-    start = (page - 1) * DASHBOARD_PAGE_SIZE
-    end = start + DASHBOARD_PAGE_SIZE
-
-    return {
-        "generated_at": datetime.now().strftime("%H:%M:%S"),
-        "sync_status": "Upload pending",
-        "unresolved_count": unresolved_count,
-        "printers": PRINTERS[start:end],
-        "current_page": page,
-        "total_pages": total_pages,
-        "total_printers": len(PRINTERS),
-    }
+    return backend.get_dashboard_payload(page, DASHBOARD_PAGE_SIZE)
 
 
 def markdown_to_html(markdown: str) -> Markup:
@@ -593,7 +564,7 @@ def dashboard_api():
 @app.get("/printers/<int:printer_id>")
 def printer_detail(printer_id: int):
     printer = find_printer(printer_id)
-    weekly_records = WEEKLY_RECORDS.get(printer_id, [])
+    weekly_records = backend.weekly_records(printer_id)
     recent_history = full_history_events(printer_id)[:3]
 
     return render_template(
@@ -610,6 +581,7 @@ def printer_detail(printer_id: int):
 def weekly(printer_id: int):
     printer = find_printer(printer_id)
     if request.method == "POST":
+        backend.save_weekly_maintenance(printer_id, request.form, CHECKLIST_ITEMS, METRIC_FIELDS, SEMESTERS)
         return redirect(url_for("weekly_history", printer_id=printer_id, saved="weekly"))
 
     return render_template(
@@ -626,7 +598,7 @@ def weekly(printer_id: int):
 @app.get("/printers/<int:printer_id>/weekly/history")
 def weekly_history(printer_id: int):
     printer = find_printer(printer_id)
-    records = WEEKLY_RECORDS.get(printer_id, [])
+    records = backend.weekly_records(printer_id)
     return render_template("weekly_history.html", printer=printer, records=records)
 
 
@@ -650,8 +622,10 @@ def reactive_start(printer_id: int):
         action = request.form.get("next_action")
         category = request.form.get("symptom_category")
         if action == "diagnosis":
+            backend.ensure_reactive_event(printer_id, request.form)
             return redirect(url_for("diagnosis", printer_id=printer_id, category=category))
         if action == "manual":
+            backend.ensure_reactive_event(printer_id, request.form)
             return redirect(url_for("manual_log", printer_id=printer_id))
         return redirect(url_for("printer_detail", printer_id=printer_id))
 
@@ -711,7 +685,8 @@ def manual_log(printer_id: int):
     printer = find_printer(printer_id)
 
     if request.method == "POST":
-        return redirect(url_for("reactive_summary", printer_id=printer_id, source="manual"))
+        backend.save_reactive_event(printer_id, request.form, source="manual")
+        return redirect(url_for("history", printer_id=printer_id, filter="reactive", saved="manual"))
 
     return render_template(
         "manual_log.html",
@@ -737,6 +712,14 @@ def reactive_summary(printer_id: int):
         diagnosis_prefill = diagnosis_result_prefill(node)
 
     if request.method == "POST":
+        source = "quick_fix" if quick_fix_id else "diagnosis_assistant" if diagnosis_node_id else request.args.get("source", "manual")
+        backend.save_reactive_event(
+            printer_id,
+            request.form,
+            source=source,
+            save_action=request.form.get("save_action"),
+            diagnosis_node_id=diagnosis_node_id,
+        )
         return redirect(url_for("dashboard", saved="reactive", printer=printer_id))
 
     return render_template(
