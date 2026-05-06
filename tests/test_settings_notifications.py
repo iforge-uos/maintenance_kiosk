@@ -59,6 +59,74 @@ class SettingsNotificationTests(unittest.TestCase):
             "https://chat.googleapis.com/v1/spaces/example",
         )
 
+    def test_settings_page_loads_from_dashboard_and_saves_form(self) -> None:
+        dashboard = self.client.get("/")
+        self.assertEqual(dashboard.status_code, 200)
+        self.assertIn(b"/settings", dashboard.data)
+
+        response = self.client.post(
+            "/settings",
+            data={
+                "technician_name": ["Alex Technician", "Morgan Technician"],
+                "technician_email": ["alex@example.com", "morgan@example.com"],
+                "receives_weekly_reminders": ["0"],
+                "google_chat_webhook_url": "https://chat.googleapis.com/v1/spaces/example",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        technicians = self.backend.active_technicians()
+        self.assertEqual([item["name"] for item in technicians], ["Alex Technician", "Morgan Technician"])
+        self.assertEqual(
+            self.backend.get_app_setting("google_chat_webhook_url"),
+            "https://chat.googleapis.com/v1/spaces/example",
+        )
+
+    def test_settings_rejects_invalid_email_and_webhook(self) -> None:
+        response = self.client.post(
+            "/settings",
+            data={
+                "technician_name": ["Alex Technician"],
+                "technician_email": ["not-an-email"],
+                "google_chat_webhook_url": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn(b"valid email", response.data)
+
+        response = self.client.post(
+            "/settings",
+            data={
+                "technician_name": ["Alex Technician"],
+                "technician_email": ["alex@example.com"],
+                "google_chat_webhook_url": "http://not-secure.example.com",
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn(b"https://", response.data)
+
+    def test_saved_technicians_appear_in_maintenance_dropdowns(self) -> None:
+        self.backend.save_technicians(
+            [
+                {
+                    "name": "Alex Technician",
+                    "email": "alex@example.com",
+                    "receives_weekly_reminders": True,
+                    "is_active": True,
+                }
+            ]
+        )
+
+        weekly = self.client.get("/printers/2/weekly")
+        manual = self.client.get("/printers/2/reactive/manual")
+
+        self.assertEqual(weekly.status_code, 200)
+        self.assertEqual(manual.status_code, 200)
+        self.assertIn(b"Alex Technician", weekly.data)
+        self.assertIn(b"Alex Technician", manual.data)
+
 
 if __name__ == "__main__":
     unittest.main()

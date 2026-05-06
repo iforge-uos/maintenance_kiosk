@@ -504,6 +504,31 @@ def get_dashboard_payload(page: int = 1) -> dict[str, Any]:
     return backend.get_dashboard_payload(page, DASHBOARD_PAGE_SIZE)
 
 
+def technician_names() -> list[str]:
+    names = [technician["name"] for technician in backend.active_technicians()]
+    return names or TECHNICIANS
+
+
+def technicians_from_settings_form(form: Any) -> list[dict[str, Any]]:
+    names = form.getlist("technician_name")
+    emails = form.getlist("technician_email")
+    reminder_indexes = set(form.getlist("receives_weekly_reminders"))
+    technicians = []
+    for index, name in enumerate(names):
+        email = emails[index] if index < len(emails) else ""
+        if not name.strip() and not email.strip():
+            continue
+        technicians.append(
+            {
+                "name": name.strip(),
+                "email": email.strip(),
+                "receives_weekly_reminders": str(index) in reminder_indexes,
+                "is_active": True,
+            }
+        )
+    return technicians
+
+
 def markdown_to_html(markdown: str) -> Markup:
     html_lines = []
     in_list = False
@@ -561,6 +586,27 @@ def dashboard_api():
     return jsonify(get_dashboard_payload(page))
 
 
+@app.route("/settings", methods=["GET", "POST"])
+def settings():
+    if request.method == "POST":
+        webhook = request.form.get("google_chat_webhook_url", "").strip()
+        if webhook and not webhook.startswith("https://"):
+            return "Google Chat webhook must start with https://", 400
+        try:
+            backend.save_technicians(technicians_from_settings_form(request.form))
+        except ValueError as exc:
+            return str(exc), 400
+        backend.save_app_setting("google_chat_webhook_url", webhook)
+        return redirect(url_for("settings", saved="settings"))
+
+    return render_template(
+        "settings.html",
+        technicians=backend.active_technicians(),
+        google_chat_webhook_url=backend.get_app_setting("google_chat_webhook_url"),
+        saved=request.args.get("saved"),
+    )
+
+
 @app.get("/printers/<int:printer_id>")
 def printer_detail(printer_id: int):
     printer = find_printer(printer_id)
@@ -590,7 +636,7 @@ def weekly(printer_id: int):
         checklist_items=CHECKLIST_ITEMS,
         metric_fields=METRIC_FIELDS,
         semesters=SEMESTERS,
-        technicians=TECHNICIANS,
+        technicians=technician_names(),
         weeks=range(1, 14),
     )
 
@@ -691,7 +737,7 @@ def manual_log(printer_id: int):
     return render_template(
         "manual_log.html",
         printer=printer,
-        technicians=TECHNICIANS,
+        technicians=technician_names(),
         event_origins=EVENT_ORIGINS,
         symptom_categories=SYMPTOM_CATEGORIES,
         result_statuses=RESULT_STATUSES,
@@ -725,7 +771,7 @@ def reactive_summary(printer_id: int):
     return render_template(
         "reactive.html",
         printer=printer,
-        technicians=TECHNICIANS,
+        technicians=technician_names(),
         symptom_categories=SYMPTOM_CATEGORIES,
         result_statuses=RESULT_STATUSES,
         quick_fix=quick_fix,

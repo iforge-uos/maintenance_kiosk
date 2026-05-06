@@ -9,6 +9,7 @@
       <span class="muted">{{ payload.total_printers }} active printers</span>
     </div>
     <div class="header-metrics">
+      <a class="settings-button" href="{{ url_for('settings') }}" aria-label="Settings">Settings</a>
       <span class="sync-pill" data-sync-status>{{ payload.sync_status }}</span>
       <span class="alert-pill"><b data-alert-count>{{ payload.unresolved_count }}</b> faults</span>
       <span class="page-pill">Page {{ payload.current_page }} / {{ payload.total_pages }}</span>

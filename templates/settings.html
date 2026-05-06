@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% set title = "Settings" %}
+
+{% block content %}
+<section class="screen settings-screen">
+  <header class="kiosk-header compact">
+    <div>
+      <h1>Settings</h1>
+      <span class="muted">Technicians and notifications</span>
+    </div>
+    <nav class="header-actions">
+      <a href="{{ url_for('dashboard') }}">Dashboard</a>
+    </nav>
+  </header>
+
+  {% if saved %}
+    <p class="success-banner">Settings saved.</p>
+  {% endif %}
+
+  <form method="post" class="settings-form">
+    <section class="form-panel">
+      <h2>Technicians</h2>
+      <div class="technician-settings-list" data-technician-settings-list>
+        {% for technician in technicians %}
+          <div class="technician-settings-row">
+            <label>
+              <span>Name</span>
+              <input name="technician_name" value="{{ technician.name }}" required>
+            </label>
+            <label>
+              <span>Email</span>
+              <input name="technician_email" type="email" value="{{ technician.email }}" required>
+            </label>
+            <label class="checkbox-line">
+              <input name="receives_weekly_reminders" type="checkbox" value="{{ loop.index0 }}" {% if technician.receives_weekly_reminders %}checked{% endif %}>
+              <span>Receives weekly reminders</span>
+            </label>
+          </div>
+        {% endfor %}
+        <div class="technician-settings-row">
+          <label>
+            <span>Name</span>
+            <input name="technician_name" value="">
+          </label>
+          <label>
+            <span>Email</span>
+            <input name="technician_email" type="email" value="">
+          </label>
+          <label class="checkbox-line">
+            <input name="receives_weekly_reminders" type="checkbox" value="{{ technicians|length }}">
+            <span>Receives weekly reminders</span>
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <section class="form-panel">
+      <h2>Google Chat</h2>
+      <label>
+        <span>Incoming webhook URL</span>
+        <input name="google_chat_webhook_url" type="url" value="{{ google_chat_webhook_url }}" placeholder="https://chat.googleapis.com/...">
+      </label>
+    </section>
+
+    <div class="save-row">
+      <button class="primary-button" type="submit">Save Settings</button>
+      <a class="danger-button" href="{{ url_for('dashboard') }}">Cancel</a>
+    </div>
+  </form>
+</section>
+{% endblock %}
