@@ -960,3 +960,34 @@ def queue_weekly_reminder_emails(kiosk_base_url: str) -> int:
                 )
             )
     return len(recipients)
+
+
+def mark_notification_sent(notification_id: int) -> None:
+    sent_at = now_text()
+    with engine().begin() as conn:
+        conn.execute(
+            update(notification_queue_table)
+            .where(notification_queue_table.c.notification_id == notification_id)
+            .values(status="sent", sent_at=sent_at, last_attempt_at=sent_at, error_message=None)
+        )
+
+
+def mark_notification_failed(notification_id: int, error_message: str) -> None:
+    failed_at = now_text()
+    with engine().begin() as conn:
+        row = conn.execute(
+            select(notification_queue_table.c.retry_count).where(
+                notification_queue_table.c.notification_id == notification_id
+            )
+        ).fetchone()
+        retry_count = int(row._mapping["retry_count"] if row else 0) + 1
+        conn.execute(
+            update(notification_queue_table)
+            .where(notification_queue_table.c.notification_id == notification_id)
+            .values(
+                status="failed",
+                retry_count=retry_count,
+                last_attempt_at=failed_at,
+                error_message=error_message,
+            )
+        )

@@ -198,6 +198,58 @@ class SettingsNotificationTests(unittest.TestCase):
         self.assertIn("Weekly maintenance reminder", email_jobs[0]["subject"])
         self.assertIn("http://raspberrypi.local:5050", email_jobs[0]["body"])
 
+    def test_process_pending_notifications_marks_success_sent(self) -> None:
+        self.backend.save_technicians(
+            [
+                {
+                    "name": "Reminder Tech",
+                    "email": "reminder@example.com",
+                    "receives_weekly_reminders": True,
+                    "is_active": True,
+                }
+            ]
+        )
+        self.backend.queue_weekly_reminder_emails(kiosk_base_url="http://raspberrypi.local:5050")
+        notifications = importlib.import_module("notifications")
+        sent = []
+
+        def fake_email(job):
+            sent.append(("email", job["recipient_email"]))
+
+        def fake_chat(job):
+            sent.append(("chat", job["target_url"]))
+
+        result = notifications.process_pending_notifications(send_email=fake_email, send_google_chat=fake_chat)
+
+        self.assertEqual(result["sent"], 1)
+        self.assertEqual(sent, [("email", "reminder@example.com")])
+        self.assertEqual(self.backend.pending_notification_jobs(), [])
+
+    def test_process_pending_notifications_records_failure(self) -> None:
+        self.backend.save_technicians(
+            [
+                {
+                    "name": "Reminder Tech",
+                    "email": "reminder@example.com",
+                    "receives_weekly_reminders": True,
+                    "is_active": True,
+                }
+            ]
+        )
+        self.backend.queue_weekly_reminder_emails(kiosk_base_url="http://raspberrypi.local:5050")
+        notifications = importlib.import_module("notifications")
+
+        def failing_email(job):
+            raise RuntimeError("SMTP unavailable")
+
+        result = notifications.process_pending_notifications(send_email=failing_email)
+        jobs = self.backend.pending_notification_jobs()
+
+        self.assertEqual(result["failed"], 1)
+        self.assertEqual(jobs[0]["status"], "failed")
+        self.assertEqual(jobs[0]["retry_count"], 1)
+        self.assertIn("SMTP unavailable", jobs[0]["error_message"])
+
 
 if __name__ == "__main__":
     unittest.main()
