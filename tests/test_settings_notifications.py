@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import importlib
+import io
 import os
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 
 
@@ -249,6 +251,40 @@ class SettingsNotificationTests(unittest.TestCase):
         self.assertEqual(jobs[0]["status"], "failed")
         self.assertEqual(jobs[0]["retry_count"], 1)
         self.assertIn("SMTP unavailable", jobs[0]["error_message"])
+
+
+class WorkerBootstrapTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tmpdir = tempfile.TemporaryDirectory()
+        db_path = Path(self.tmpdir.name) / "worker-test.db"
+        os.environ["DATABASE_URL"] = f"sqlite:///{db_path}"
+
+        for module_name in ("app", "backend", "notifications", "notification_worker", "weekly_reminder_worker"):
+            sys.modules.pop(module_name, None)
+
+    def tearDown(self) -> None:
+        for module_name in ("app", "backend", "notifications", "notification_worker", "weekly_reminder_worker"):
+            sys.modules.pop(module_name, None)
+        os.environ.pop("DATABASE_URL", None)
+        self.tmpdir.cleanup()
+
+    def test_notification_worker_initializes_database_before_processing(self) -> None:
+        worker = importlib.import_module("notification_worker")
+
+        with redirect_stdout(io.StringIO()):
+            worker.main()
+
+        backend = importlib.import_module("backend")
+        self.assertGreater(len(backend.active_technicians()), 0)
+
+    def test_weekly_worker_initializes_database_before_queueing_reminders(self) -> None:
+        worker = importlib.import_module("weekly_reminder_worker")
+
+        with redirect_stdout(io.StringIO()):
+            worker.main()
+
+        backend = importlib.import_module("backend")
+        self.assertGreater(len(backend.active_technicians()), 0)
 
 
 if __name__ == "__main__":

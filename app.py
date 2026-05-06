@@ -439,7 +439,11 @@ WEEKLY_RECORDS = {
     ],
 }
 
-backend.init_database(PRINTERS, WEEKLY_RECORDS, HISTORY)
+def initialize_database() -> None:
+    backend.init_database(PRINTERS, WEEKLY_RECORDS, HISTORY)
+
+
+initialize_database()
 
 
 def find_printer(printer_id: int) -> dict[str, Any]:
