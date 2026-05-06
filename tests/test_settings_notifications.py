@@ -127,6 +127,49 @@ class SettingsNotificationTests(unittest.TestCase):
         self.assertIn(b"Alex Technician", weekly.data)
         self.assertIn(b"Alex Technician", manual.data)
 
+    def test_manual_fault_start_queues_google_chat_message(self) -> None:
+        self.backend.save_app_setting("google_chat_webhook_url", "https://chat.googleapis.com/v1/spaces/example")
+
+        self.client.post(
+            "/printers/2/reactive/start",
+            data={
+                "next_action": "manual",
+                "event_origin": "Technician observed issue",
+                "symptom_category": "Fan not spinning",
+                "urgency_state": "Unavailable",
+                "issue_summary": "Fan stopped during print",
+            },
+        )
+
+        jobs = self.backend.pending_notification_jobs()
+        chat_jobs = [job for job in jobs if job["channel"] == "google_chat"]
+        self.assertEqual(len(chat_jobs), 1)
+        self.assertIn("Picasso", chat_jobs[0]["body"])
+        self.assertIn("Fan stopped during print", chat_jobs[0]["body"])
+
+    def test_fixed_reactive_save_queues_google_chat_message(self) -> None:
+        self.backend.save_app_setting("google_chat_webhook_url", "https://chat.googleapis.com/v1/spaces/example")
+
+        self.client.post(
+            "/printers/2/reactive/manual",
+            data={
+                "event_origin": "Technician observed issue",
+                "symptom_category": "Fan not spinning",
+                "issue_summary": "Fan noisy",
+                "action_taken": ["Checked fan"],
+                "component_involved": "Fan",
+                "result_status": "Fixed and available",
+                "technician_name": "Alex Technician",
+                "fix_summary": "Fan checked",
+            },
+        )
+
+        jobs = self.backend.pending_notification_jobs()
+        chat_jobs = [job for job in jobs if job["channel"] == "google_chat"]
+        self.assertEqual(len(chat_jobs), 1)
+        self.assertIn("fixed", chat_jobs[0]["body"].lower())
+        self.assertIn("Fan checked", chat_jobs[0]["body"])
+
 
 if __name__ == "__main__":
     unittest.main()

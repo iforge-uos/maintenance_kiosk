@@ -20,6 +20,7 @@ from sqlalchemy import (
     func,
     insert,
     select,
+    text,
     update,
 )
 from sqlalchemy.engine import Engine, Row
@@ -130,7 +131,10 @@ notification_queue_table = Table(
     Column("notification_id", Integer, primary_key=True, autoincrement=True),
     Column("event_id", String(80), ForeignKey("maintenance_events.event_id", ondelete="CASCADE")),
     Column("printer_id", Integer, ForeignKey("printers.id", ondelete="CASCADE")),
+    Column("channel", String(40), nullable=False, default="email"),
+    Column("notification_type", String(80), nullable=False, default="general"),
     Column("recipient_email", String(255)),
+    Column("target_url", Text),
     Column("subject", Text),
     Column("body", Text),
     Column("status", String(30), nullable=False, default="pending"),
@@ -239,11 +243,34 @@ def init_database(
     history: dict[int, list[dict[str, Any]]],
 ) -> None:
     metadata.create_all(engine())
+    ensure_notification_queue_columns()
     with engine().begin() as conn:
         existing = conn.execute(select(func.count()).select_from(printers_table)).scalar_one()
         if existing:
             return
         seed_database(conn, printers, weekly_records, history)
+
+
+def ensure_notification_queue_columns() -> None:
+    required_columns = {
+        "channel": "VARCHAR(40) DEFAULT 'email' NOT NULL",
+        "notification_type": "VARCHAR(80) DEFAULT 'general' NOT NULL",
+        "target_url": "TEXT",
+    }
+    with engine().begin() as conn:
+        if engine().dialect.name == "sqlite":
+            existing = {row._mapping["name"] for row in conn.execute(text("PRAGMA table_info(notification_queue)"))}
+        else:
+            rows = conn.execute(
+                text(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_name = 'notification_queue'"
+                )
+            ).fetchall()
+            existing = {row._mapping["column_name"] for row in rows}
+        for column_name, column_sql in required_columns.items():
+            if column_name not in existing:
+                conn.execute(text(f"ALTER TABLE notification_queue ADD COLUMN {column_name} {column_sql}"))
 
 
 def seed_database(conn: Any, printers: list[dict[str, Any]], weekly_records: dict[int, list[dict[str, Any]]], history: dict[int, list[dict[str, Any]]]) -> None:
@@ -632,6 +659,7 @@ def ensure_reactive_event(printer_id: int, form: Any) -> str:
     issue = form.get("issue_summary", "").strip() or "Reactive maintenance started"
     note = form.get("note", "").strip()
     printer_status = "Unavailable" if urgency == "Unavailable" else "Under Maintenance"
+    printer_name = find_printer(printer_id)["name"]
 
     with engine().begin() as conn:
         conn.execute(
@@ -671,6 +699,13 @@ def ensure_reactive_event(printer_id: int, form: Any) -> str:
             )
         )
         queue_sync(conn, new_event_id, "reactive_start", created_at)
+        queue_google_chat_notification(
+            conn,
+            new_event_id,
+            printer_id,
+            "fault_started",
+            f"Fault started on {printer_name}: {issue}. Origin: {origin}. Urgency: {urgency}. Time: {created_at}.",
+        )
 
     return new_event_id
 
@@ -712,6 +747,7 @@ def save_reactive_event(
     status, reactive_state, has_open_fault, event_state = printer_state_from_result(save_action, result_status)
     resolved_at = created_at if event_state == "resolved" else None
     event_summary = fix_summary if event_state == "resolved" and fix_summary else issue
+    printer_name = find_printer(printer_id)["name"]
 
     with engine().begin() as conn:
         if existing:
@@ -786,6 +822,14 @@ def save_reactive_event(
             )
         )
         queue_sync(conn, target_event_id, "reactive_log", created_at)
+        if event_state == "resolved":
+            queue_google_chat_notification(
+                conn,
+                target_event_id,
+                printer_id,
+                "fault_fixed",
+                f"Fault fixed on {printer_name} by {technician}: {fix_summary or event_summary}. Component: {component or 'Not specified'}. Time: {created_at}.",
+            )
 
     return target_event_id
 
@@ -822,3 +866,37 @@ def queue_sync(conn: Any, event: str, export_type: str, created_at: str) -> None
             created_at=created_at,
         )
     )
+
+
+def queue_google_chat_notification(conn: Any, event: str, printer_id: int, notification_type: str, body: str) -> None:
+    webhook_row = conn.execute(
+        select(app_settings_table.c.setting_value).where(app_settings_table.c.setting_key == "google_chat_webhook_url")
+    ).fetchone()
+    webhook = webhook_row._mapping["setting_value"] if webhook_row else ""
+    if not webhook:
+        return
+    conn.execute(
+        insert(notification_queue_table).values(
+            event_id=event,
+            printer_id=printer_id,
+            channel="google_chat",
+            notification_type=notification_type,
+            target_url=webhook,
+            subject=None,
+            body=body,
+            status="pending",
+            retry_count=0,
+            created_at=now_text(),
+        )
+    )
+
+
+def pending_notification_jobs() -> list[dict[str, Any]]:
+    stmt = (
+        select(notification_queue_table)
+        .where(notification_queue_table.c.status.in_(["pending", "failed"]))
+        .order_by(notification_queue_table.c.created_at)
+    )
+    with engine().connect() as conn:
+        rows = conn.execute(stmt).fetchall()
+    return [dict(row._mapping) for row in rows]
