@@ -2,15 +2,16 @@
 
 ## Summary
 
-Add a dashboard Settings button so technicians can manage contact details and notification preferences. The first notification version will support weekly maintenance reminder emails every Monday at 12:00 local MacBook time, plus Google Chat messages when manually triggered faults start and when repairs are marked fixed.
+Add a dashboard Settings button so technicians can manage contact details and notification preferences. The first notification version will support weekly maintenance reminder emails every Monday at 12:00 local Raspberry Pi time, plus Google Chat messages when manually triggered faults start and when repairs are marked fixed.
 
-The implementation will use a queue-first design. Flask route handlers will save user actions and enqueue notification work in PostgreSQL through SQLAlchemy. Separate worker functions or scripts will send pending email and Google Chat jobs, so form saves stay fast and notifications can retry after network failure.
+The production target is a Raspberry Pi 4. The MacBook is only the development and test machine. The implementation will use a queue-first design. Flask route handlers will save user actions and enqueue notification work in PostgreSQL through SQLAlchemy. Separate lightweight worker functions or scripts will send pending email and Google Chat jobs, so form saves stay fast and notifications can retry after network failure.
 
 ## User Decisions
 
 - Google Chat integration will use an incoming webhook URL.
 - Weekly maintenance notifications are reminders, not completion receipts.
-- Weekly reminders should run every Monday at 12:00 local MacBook time.
+- The production hardware is Raspberry Pi 4; MacBook runs are only for testing.
+- Weekly reminders should run every Monday at 12:00 using the Raspberry Pi's local system time.
 - Reminder email sending will use Gmail SMTP.
 - Only technicians marked with a reminder checkbox receive weekly reminder emails.
 
@@ -18,9 +19,20 @@ The implementation will use a queue-first design. Flask route handlers will save
 
 The existing Flask app remains the web framework. Flask will render the new Settings page, validate form submissions, and call backend repository functions. SQLAlchemy remains the database framework and will define new tables for technician settings, app settings, and queued notification jobs.
 
-The app will not send email or Google Chat messages directly inside the form request. Instead, app actions create rows in a notification queue. A worker command can be run by a local scheduler, such as macOS launchd or cron, to process pending jobs.
+The app will not send email or Google Chat messages directly inside the form request. Instead, app actions create rows in a notification queue. A worker command can be run by a Raspberry Pi OS scheduler, such as a systemd timer or cron, to process pending jobs.
 
 This keeps the kiosk local-first. If the internet is down, the database still records the event and the pending notification remains available for retry.
+
+## Hardware Deployment
+
+Raspberry Pi 4 is the real runtime target. Implementation choices must stay light enough for that hardware:
+
+- Use plain Flask, SQLAlchemy, PostgreSQL, and small Python worker scripts.
+- Do not introduce a heavy background framework such as Celery for this version.
+- Scheduling should work on Raspberry Pi OS through cron or systemd timers.
+- Reminder time calculations use the Raspberry Pi's configured local timezone.
+- The Raspberry Pi clock/timezone must be configured correctly during deployment; the MacBook can test the same behavior but does not define production time.
+- The kiosk should still run in local-first mode if internet access is unavailable.
 
 ## Settings UI
 
@@ -67,7 +79,7 @@ Extend notification queue usage so it can represent both email and Google Chat j
 
 Weekly reminder:
 
-- A reminder worker runs every Monday at 12:00 local MacBook time.
+- A reminder worker runs every Monday at 12:00 using the Raspberry Pi's local system time.
 - It finds active technicians with `receives_weekly_reminders` checked.
 - It finds printers whose weekly maintenance should be done for the current week.
 - It queues one email per selected technician.
@@ -96,6 +108,8 @@ Add `.env.example` entries for Gmail SMTP:
 
 The Google Chat webhook is saved from Settings instead of `.env` so it can be changed from the kiosk UI.
 
+On the MacBook, `KIOSK_BASE_URL=http://127.0.0.1:5050` is fine for testing. On the Raspberry Pi, `KIOSK_BASE_URL` should be changed to the Pi's reachable kiosk URL, such as a local hostname or LAN IP address.
+
 ## Error Handling
 
 Settings validation:
@@ -118,6 +132,7 @@ Add tests for:
 - Saving technicians persists name, email, and reminder checkbox.
 - Technician dropdowns use saved active technicians instead of only hardcoded defaults.
 - Weekly reminder job creation queues email only for checked technicians.
+- Weekly reminder scheduling uses the Raspberry Pi/local system timezone contract, not a hardcoded MacBook assumption.
 - Manual fault start queues a Google Chat notification when a webhook exists.
 - Fixed reactive save queues a Google Chat notification when a webhook exists.
 - Notification sender marks successful jobs as sent.
