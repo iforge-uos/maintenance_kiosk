@@ -170,6 +170,34 @@ class SettingsNotificationTests(unittest.TestCase):
         self.assertIn("fixed", chat_jobs[0]["body"].lower())
         self.assertIn("Fan checked", chat_jobs[0]["body"])
 
+    def test_weekly_reminder_queues_email_only_for_checked_technicians(self) -> None:
+        self.backend.save_technicians(
+            [
+                {
+                    "name": "Reminder Tech",
+                    "email": "reminder@example.com",
+                    "receives_weekly_reminders": True,
+                    "is_active": True,
+                },
+                {
+                    "name": "No Reminder Tech",
+                    "email": "noreminder@example.com",
+                    "receives_weekly_reminders": False,
+                    "is_active": True,
+                },
+            ]
+        )
+
+        queued_count = self.backend.queue_weekly_reminder_emails(kiosk_base_url="http://raspberrypi.local:5050")
+
+        jobs = self.backend.pending_notification_jobs()
+        email_jobs = [job for job in jobs if job["channel"] == "email"]
+        self.assertEqual(queued_count, 1)
+        self.assertEqual(len(email_jobs), 1)
+        self.assertEqual(email_jobs[0]["recipient_email"], "reminder@example.com")
+        self.assertIn("Weekly maintenance reminder", email_jobs[0]["subject"])
+        self.assertIn("http://raspberrypi.local:5050", email_jobs[0]["body"])
+
 
 if __name__ == "__main__":
     unittest.main()

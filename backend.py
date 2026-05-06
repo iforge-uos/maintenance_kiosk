@@ -900,3 +900,63 @@ def pending_notification_jobs() -> list[dict[str, Any]]:
     with engine().connect() as conn:
         rows = conn.execute(stmt).fetchall()
     return [dict(row._mapping) for row in rows]
+
+
+def printers_due_for_weekly() -> list[dict[str, Any]]:
+    current_year, current_week, _ = datetime.now().isocalendar()
+    with engine().connect() as conn:
+        rows = conn.execute(select(printers_table).order_by(printers_table.c.display_order)).fetchall()
+
+    due_printers = []
+    for row in rows:
+        printer = dict(row._mapping)
+        last_weekly = printer.get("last_weekly_at")
+        try:
+            last_date = datetime.strptime(last_weekly or "", "%Y-%m-%d")
+        except ValueError:
+            due_printers.append(printer)
+            continue
+        weekly_year, weekly_number, _ = last_date.isocalendar()
+        if (weekly_year, weekly_number) != (current_year, current_week):
+            due_printers.append(printer)
+    return due_printers
+
+
+def weekly_reminder_body(printers: list[dict[str, Any]], kiosk_base_url: str) -> str:
+    lines = [
+        "Weekly maintenance reminder",
+        "",
+        "Please complete weekly maintenance for these printers:",
+    ]
+    for printer in printers:
+        lines.append(f"- {printer['name']} (last weekly: {printer['last_weekly_at'] or 'never'})")
+    lines.extend(["", f"Kiosk: {kiosk_base_url}"])
+    return "\n".join(lines)
+
+
+def queue_weekly_reminder_emails(kiosk_base_url: str) -> int:
+    recipients = weekly_reminder_technicians()
+    due_printers = printers_due_for_weekly()
+    if not recipients or not due_printers:
+        return 0
+
+    created_at = now_text()
+    body = weekly_reminder_body(due_printers, kiosk_base_url)
+    with engine().begin() as conn:
+        for technician in recipients:
+            conn.execute(
+                insert(notification_queue_table).values(
+                    event_id=None,
+                    printer_id=None,
+                    channel="email",
+                    notification_type="weekly_reminder",
+                    recipient_email=technician["email"],
+                    target_url=None,
+                    subject="Weekly maintenance reminder",
+                    body=body,
+                    status="pending",
+                    retry_count=0,
+                    created_at=created_at,
+                )
+            )
+    return len(recipients)
