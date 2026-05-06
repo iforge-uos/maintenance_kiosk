@@ -16,6 +16,7 @@ from sqlalchemy import (
     Table,
     Text,
     create_engine,
+    delete,
     func,
     insert,
     select,
@@ -101,6 +102,26 @@ reactive_events_table = Table(
     Column("result_status", String(80)),
     Column("fix_summary", Text),
     Column("resolved_at", String(32)),
+)
+
+technicians_table = Table(
+    "technicians",
+    metadata,
+    Column("technician_id", Integer, primary_key=True, autoincrement=True),
+    Column("name", String(120), nullable=False),
+    Column("email", String(255), nullable=False),
+    Column("receives_weekly_reminders", Boolean, nullable=False, default=False),
+    Column("is_active", Boolean, nullable=False, default=True),
+    Column("created_at", String(32), nullable=False),
+    Column("updated_at", String(32), nullable=False),
+)
+
+app_settings_table = Table(
+    "app_settings",
+    metadata,
+    Column("setting_key", String(120), primary_key=True),
+    Column("setting_value", Text, nullable=False),
+    Column("updated_at", String(32), nullable=False),
 )
 
 notification_queue_table = Table(
@@ -243,6 +264,8 @@ def seed_database(conn: Any, printers: list[dict[str, Any]], weekly_records: dic
             )
         )
 
+    seed_technicians(conn)
+
     for printer_id, records in weekly_records.items():
         for record in records:
             insert_seed_weekly(conn, printer_id, record)
@@ -251,6 +274,21 @@ def seed_database(conn: Any, printers: list[dict[str, Any]], weekly_records: dic
         for index, event in enumerate(events, start=1):
             if event["type"] == "reactive":
                 insert_seed_reactive(conn, printer_id, index, event)
+
+
+def seed_technicians(conn: Any) -> None:
+    created_at = now_text()
+    for number in range(1, 9):
+        conn.execute(
+            insert(technicians_table).values(
+                name=f"Technician {number}",
+                email=f"technician{number}@example.com",
+                receives_weekly_reminders=False,
+                is_active=True,
+                created_at=created_at,
+                updated_at=created_at,
+            )
+        )
 
 
 def insert_seed_weekly(conn: Any, printer_id: int, record: dict[str, Any]) -> None:
@@ -326,6 +364,76 @@ def find_printer(printer_id: int) -> dict[str, Any] | None:
     with engine().connect() as conn:
         row = conn.execute(select(printers_table).where(printers_table.c.id == printer_id)).fetchone()
     return row_to_dict(row)
+
+
+def active_technicians() -> list[dict[str, Any]]:
+    stmt = select(technicians_table).where(technicians_table.c.is_active == True).order_by(technicians_table.c.name)
+    with engine().connect() as conn:
+        rows = conn.execute(stmt).fetchall()
+    return [dict(row._mapping) for row in rows]
+
+
+def weekly_reminder_technicians() -> list[dict[str, Any]]:
+    stmt = (
+        select(technicians_table)
+        .where(technicians_table.c.is_active == True)
+        .where(technicians_table.c.receives_weekly_reminders == True)
+        .order_by(technicians_table.c.name)
+    )
+    with engine().connect() as conn:
+        rows = conn.execute(stmt).fetchall()
+    return [dict(row._mapping) for row in rows]
+
+
+def save_technicians(technicians: list[dict[str, Any]]) -> None:
+    updated_at = now_text()
+    with engine().begin() as conn:
+        conn.execute(delete(technicians_table))
+        for technician in technicians:
+            name = technician["name"].strip()
+            email = technician["email"].strip()
+            if not name or "@" not in email or "." not in email.split("@")[-1]:
+                raise ValueError("Technician name and valid email are required.")
+            conn.execute(
+                insert(technicians_table).values(
+                    name=name,
+                    email=email,
+                    receives_weekly_reminders=bool(technician.get("receives_weekly_reminders")),
+                    is_active=bool(technician.get("is_active", True)),
+                    created_at=updated_at,
+                    updated_at=updated_at,
+                )
+            )
+
+
+def get_app_setting(setting_key: str, default: str = "") -> str:
+    with engine().connect() as conn:
+        row = conn.execute(
+            select(app_settings_table.c.setting_value).where(app_settings_table.c.setting_key == setting_key)
+        ).fetchone()
+    return row._mapping["setting_value"] if row else default
+
+
+def save_app_setting(setting_key: str, setting_value: str) -> None:
+    updated_at = now_text()
+    with engine().begin() as conn:
+        existing = conn.execute(
+            select(app_settings_table.c.setting_key).where(app_settings_table.c.setting_key == setting_key)
+        ).fetchone()
+        if existing:
+            conn.execute(
+                update(app_settings_table)
+                .where(app_settings_table.c.setting_key == setting_key)
+                .values(setting_value=setting_value, updated_at=updated_at)
+            )
+        else:
+            conn.execute(
+                insert(app_settings_table).values(
+                    setting_key=setting_key,
+                    setting_value=setting_value,
+                    updated_at=updated_at,
+                )
+            )
 
 
 def get_dashboard_payload(page: int, page_size: int) -> dict[str, Any]:
