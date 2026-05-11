@@ -16,7 +16,7 @@ http://127.0.0.1:5050
 
 ## Included V1 Pages
 
-- Dashboard with 10 active printers on one compact page, including nozzle-life progress
+- Dashboard with 10 active printers across 2x2 pages, including nozzle-life progress
 - Printer action/detail page with quick fixes
 - Weekly maintenance form
 - Weekly history list and read-only detail

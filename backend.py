@@ -30,6 +30,19 @@ BASE_DIR = Path(__file__).resolve().parent
 DEFAULT_SQLITE_PATH = BASE_DIR / "data" / "kiosk.db"
 OPEN_REACTIVE_STATES = {"open", "in_progress", "escalated"}
 NOZZLE_LIFE_KM = 3.0
+DASHBOARD_PRINTER_ORDER = [
+    "Bell",
+    "Tolstoy",
+    "Einstein",
+    "Socrates",
+    "Picasso",
+    "Beethoven",
+    "Hypatia",
+    "Watt",
+    "H2D",
+    "Rosalind",
+]
+DASHBOARD_PRINTER_RANK = {name: index for index, name in enumerate(DASHBOARD_PRINTER_ORDER)}
 
 metadata = MetaData()
 _engine: Engine | None = None
@@ -539,6 +552,14 @@ def dashboard_printer(row: Row[Any], latest_filament_m: float | None) -> dict[st
     return printer
 
 
+def dashboard_sort_key(row: Row[Any]) -> tuple[int, int]:
+    printer = row._mapping
+    return (
+        DASHBOARD_PRINTER_RANK.get(printer["name"], len(DASHBOARD_PRINTER_ORDER)),
+        printer["display_order"],
+    )
+
+
 def get_dashboard_payload(page: int, page_size: int) -> dict[str, Any]:
     with engine().connect() as conn:
         total_printers = conn.execute(select(func.count()).select_from(printers_table)).scalar_one()
@@ -547,12 +568,8 @@ def get_dashboard_payload(page: int, page_size: int) -> dict[str, Any]:
         ).scalar_one()
         total_pages = max(1, (total_printers + page_size - 1) // page_size)
         page = min(max(page, 1), total_pages)
-        rows = conn.execute(
-            select(printers_table)
-            .order_by(printers_table.c.display_order)
-            .limit(page_size)
-            .offset((page - 1) * page_size)
-        ).fetchall()
+        all_rows = conn.execute(select(printers_table).order_by(printers_table.c.display_order)).fetchall()
+        rows = sorted(all_rows, key=dashboard_sort_key)[(page - 1) * page_size : page * page_size]
         latest_filament = latest_filament_by_printer(conn, [row._mapping["id"] for row in rows])
 
     return {
