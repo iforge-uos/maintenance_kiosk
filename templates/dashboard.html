@@ -4,9 +4,12 @@
 {% block content %}
 <section class="screen dashboard-screen" data-dashboard>
   <header class="kiosk-header">
-    <div>
-      <h1>Print Farm Maintenance Kiosk</h1>
-      <span class="muted">{{ payload.total_printers }} active printers</span>
+    <div class="brand-lockup">
+      <img src="{{ url_for('static', filename='img/iforge-makerspace-logo.png') }}" alt="iForge makerspace">
+      <div>
+        <h1>Print Farm Maintenance Kiosk</h1>
+        <span class="muted">{{ payload.total_printers }} active printers</span>
+      </div>
     </div>
     <div class="header-metrics">
       <a class="settings-button" href="{{ url_for('settings') }}" aria-label="Settings">Settings</a>
