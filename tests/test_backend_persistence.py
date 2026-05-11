@@ -40,6 +40,7 @@ class BackendPersistenceTests(unittest.TestCase):
                 "bed_cleaned": "on",
                 "glue_reapplied": "on",
                 "enclosure_fan_ok": "on",
+                "filament_sensor_turned_on": "on",
                 "x_movement_km": "1.2",
                 "y_movement_km": "1.1",
                 "z_movement_m": "2.3",
@@ -55,8 +56,13 @@ class BackendPersistenceTests(unittest.TestCase):
         history = self.client.get("/printers/2/weekly/history")
         self.assertEqual(history.status_code, 200)
         self.assertIn(b"week 13", history.data)
-        self.assertIn(b"7/7", history.data)
+        self.assertIn(b"8/8", history.data)
         self.assertIn(b"Fresh weekly save from test.", history.data)
+
+        records = self.app_module.backend.weekly_records(2)
+        detail = self.client.get(f"/printers/2/weekly/history/{records[0]['event_id']}")
+        self.assertEqual(detail.status_code, 200)
+        self.assertIn(b"Filament sensor turned on", detail.data)
 
     def test_manual_reactive_save_persists_history_and_dashboard_state(self) -> None:
         response = self.client.post(

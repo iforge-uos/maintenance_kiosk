@@ -43,6 +43,7 @@ CHECKLIST_ITEMS = [
     ("bed_cleaned", "Clean bed"),
     ("glue_reapplied", "Reapply glue"),
     ("enclosure_fan_ok", "KORA enclosure fan function"),
+    ("filament_sensor_turned_on", "Filament sensor turned on"),
 ]
 
 METRIC_FIELDS = [
@@ -340,6 +341,7 @@ WEEKLY_RECORDS = {
                 "Clean bed": True,
                 "Reapply glue": True,
                 "KORA enclosure fan function": True,
+                "Filament sensor turned on": True,
             },
             "metrics": {
                 "X movement": "42.8 km",
@@ -369,6 +371,7 @@ WEEKLY_RECORDS = {
                 "Clean bed": True,
                 "Reapply glue": True,
                 "KORA enclosure fan function": False,
+                "Filament sensor turned on": True,
             },
             "metrics": {
                 "X movement": "37.2 km",
@@ -398,6 +401,7 @@ WEEKLY_RECORDS = {
                 "Clean bed": True,
                 "Reapply glue": True,
                 "KORA enclosure fan function": True,
+                "Filament sensor turned on": True,
             },
             "metrics": {
                 "X movement": "45.7 km",
@@ -427,6 +431,7 @@ WEEKLY_RECORDS = {
                 "Clean bed": True,
                 "Reapply glue": True,
                 "KORA enclosure fan function": True,
+                "Filament sensor turned on": True,
             },
             "metrics": {
                 "X movement": "39.9 km",

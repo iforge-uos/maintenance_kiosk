@@ -79,6 +79,7 @@ weekly_details_table = Table(
     Column("bed_cleaned", Boolean, nullable=False, default=False),
     Column("glue_reapplied", Boolean, nullable=False, default=False),
     Column("enclosure_fan_ok", Boolean, nullable=False, default=False),
+    Column("filament_sensor_turned_on", Boolean, nullable=False, default=False),
     Column("x_movement_km", Float),
     Column("y_movement_km", Float),
     Column("z_movement_m", Float),
@@ -168,6 +169,7 @@ WEEKLY_BOOLEAN_FIELDS = [
     "bed_cleaned",
     "glue_reapplied",
     "enclosure_fan_ok",
+    "filament_sensor_turned_on",
 ]
 
 
@@ -243,6 +245,7 @@ def init_database(
     history: dict[int, list[dict[str, Any]]],
 ) -> None:
     metadata.create_all(engine())
+    ensure_weekly_detail_columns()
     ensure_notification_queue_columns()
     with engine().begin() as conn:
         existing = conn.execute(select(func.count()).select_from(printers_table)).scalar_one()
@@ -271,6 +274,23 @@ def ensure_notification_queue_columns() -> None:
         for column_name, column_sql in required_columns.items():
             if column_name not in existing:
                 conn.execute(text(f"ALTER TABLE notification_queue ADD COLUMN {column_name} {column_sql}"))
+
+
+def ensure_weekly_detail_columns() -> None:
+    column_sql = "BOOLEAN DEFAULT 0 NOT NULL" if engine().dialect.name == "sqlite" else "BOOLEAN DEFAULT false NOT NULL"
+    with engine().begin() as conn:
+        if engine().dialect.name == "sqlite":
+            existing = {row._mapping["name"] for row in conn.execute(text("PRAGMA table_info(weekly_maintenance_details)"))}
+        else:
+            rows = conn.execute(
+                text(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_name = 'weekly_maintenance_details'"
+                )
+            ).fetchall()
+            existing = {row._mapping["column_name"] for row in rows}
+        if "filament_sensor_turned_on" not in existing:
+            conn.execute(text(f"ALTER TABLE weekly_maintenance_details ADD COLUMN filament_sensor_turned_on {column_sql}"))
 
 
 def seed_database(conn: Any, printers: list[dict[str, Any]], weekly_records: dict[int, list[dict[str, Any]]], history: dict[int, list[dict[str, Any]]]) -> None:
@@ -349,6 +369,7 @@ def insert_seed_weekly(conn: Any, printer_id: int, record: dict[str, Any]) -> No
             bed_cleaned=bool(checklist["Clean bed"]),
             glue_reapplied=bool(checklist["Reapply glue"]),
             enclosure_fan_ok=bool(checklist["KORA enclosure fan function"]),
+            filament_sensor_turned_on=bool(checklist.get("Filament sensor turned on", False)),
             x_movement_km=numeric_value(metrics["X movement"].split()[0]),
             y_movement_km=numeric_value(metrics["Y movement"].split()[0]),
             z_movement_m=numeric_value(metrics["Z movement"].split()[0]),
@@ -541,6 +562,7 @@ def find_weekly_record(printer_id: int, event_id_value: str) -> dict[str, Any] |
         "Clean bed": bool(record["bed_cleaned"]),
         "Reapply glue": bool(record["glue_reapplied"]),
         "KORA enclosure fan function": bool(record["enclosure_fan_ok"]),
+        "Filament sensor turned on": bool(record["filament_sensor_turned_on"]),
     }
     record["metrics"] = {
         "X movement": format_metric(record["x_movement_km"], "km"),
@@ -629,6 +651,7 @@ def save_weekly_maintenance(
                 bed_cleaned=checked["bed_cleaned"],
                 glue_reapplied=checked["glue_reapplied"],
                 enclosure_fan_ok=checked["enclosure_fan_ok"],
+                filament_sensor_turned_on=checked["filament_sensor_turned_on"],
                 x_movement_km=metrics["x_movement_km"],
                 y_movement_km=metrics["y_movement_km"],
                 z_movement_m=metrics["z_movement_m"],
