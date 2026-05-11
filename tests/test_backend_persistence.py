@@ -64,6 +64,28 @@ class BackendPersistenceTests(unittest.TestCase):
         self.assertEqual(detail.status_code, 200)
         self.assertIn(b"Filament sensor turned on", detail.data)
 
+        dashboard = self.client.get("/api/dashboard?page=1")
+        self.assertEqual(dashboard.status_code, 200)
+        printer = next(item for item in dashboard.json["printers"] if item["id"] == 2)
+        self.assertEqual(printer["nozzle_life_used_km"], 0.12)
+        self.assertEqual(printer["nozzle_life_percent"], 4)
+        self.assertEqual(printer["nozzle_life_label"], "0.12 / 3 km")
+
+        dashboard_page = self.client.get("/")
+        self.assertEqual(dashboard_page.status_code, 200)
+        self.assertIn(b"Nozzle life", dashboard_page.data)
+        self.assertIn(b"0.12 / 3 km", dashboard_page.data)
+
+    def test_dashboard_cards_show_all_printers_on_one_compact_page(self) -> None:
+        dashboard = self.client.get("/api/dashboard?page=1")
+
+        self.assertEqual(dashboard.status_code, 200)
+        self.assertEqual(dashboard.json["total_printers"], 10)
+        self.assertEqual(dashboard.json["total_pages"], 1)
+        self.assertEqual(len(dashboard.json["printers"]), 10)
+        self.assertIn("action_needed", dashboard.json["printers"][0])
+        self.assertIn("recent_fault", dashboard.json["printers"][0])
+
     def test_manual_reactive_save_persists_history_and_dashboard_state(self) -> None:
         response = self.client.post(
             "/printers/2/reactive/manual",

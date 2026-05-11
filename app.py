@@ -33,7 +33,7 @@ SEMESTERS = [
 ]
 
 TECHNICIANS = [f"Technician {number}" for number in range(1, 9)]
-DASHBOARD_PAGE_SIZE = 8
+DASHBOARD_PAGE_SIZE = 10
 
 CHECKLIST_ITEMS = [
     ("nozzle_debris_brushed", "Brush off nozzle debris"),

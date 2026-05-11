@@ -29,6 +29,7 @@ from sqlalchemy.engine import Engine, Row
 BASE_DIR = Path(__file__).resolve().parent
 DEFAULT_SQLITE_PATH = BASE_DIR / "data" / "kiosk.db"
 OPEN_REACTIVE_STATES = {"open", "in_progress", "escalated"}
+NOZZLE_LIFE_KM = 3.0
 
 metadata = MetaData()
 _engine: Engine | None = None
@@ -484,6 +485,60 @@ def save_app_setting(setting_key: str, setting_value: str) -> None:
             )
 
 
+def nozzle_life(filament_m: float | None) -> dict[str, Any]:
+    used_km = round(max(float(filament_m or 0), 0) / 1000, 2)
+    percent = min(100, int(round((used_km / NOZZLE_LIFE_KM) * 100)))
+    return {
+        "nozzle_life_used_km": used_km,
+        "nozzle_life_percent": percent,
+        "nozzle_life_label": f"{used_km:.2f} / {NOZZLE_LIFE_KM:g} km",
+    }
+
+
+def latest_filament_by_printer(conn: Any, printer_ids: list[int]) -> dict[int, float | None]:
+    if not printer_ids:
+        return {}
+    rows = conn.execute(
+        select(
+            maintenance_events_table.c.printer_id,
+            weekly_details_table.c.filament_m,
+        )
+        .select_from(maintenance_events_table.join(weekly_details_table))
+        .where(maintenance_events_table.c.printer_id.in_(printer_ids))
+        .where(maintenance_events_table.c.event_type == "weekly")
+        .order_by(maintenance_events_table.c.printer_id, maintenance_events_table.c.created_at.desc())
+    ).fetchall()
+    latest: dict[int, float | None] = {}
+    for row in rows:
+        printer_id = row._mapping["printer_id"]
+        if printer_id not in latest:
+            latest[printer_id] = row._mapping["filament_m"]
+    return latest
+
+
+def dashboard_printer(row: Row[Any], latest_filament_m: float | None) -> dict[str, Any]:
+    printer = dict(row._mapping)
+    active_problem = printer["current_fault_summary"] or "No active problem"
+    recent_fault = printer["current_fault_summary"] or printer["last_fix_summary"] or "No fault recorded"
+    life = nozzle_life(latest_filament_m)
+    if life["nozzle_life_percent"] >= 100:
+        action_needed = "Replace nozzle"
+    elif printer["status"] == "Available" and printer["reactive_state"] in {"Clear", "Resolved"}:
+        action_needed = "No action"
+    else:
+        action_needed = printer["reactive_state"]
+    printer.update(
+        {
+            "active_problem": active_problem,
+            "recent_fault": recent_fault,
+            "availability": printer["status"],
+            "action_needed": action_needed,
+            **life,
+        }
+    )
+    return printer
+
+
 def get_dashboard_payload(page: int, page_size: int) -> dict[str, Any]:
     with engine().connect() as conn:
         total_printers = conn.execute(select(func.count()).select_from(printers_table)).scalar_one()
@@ -498,12 +553,13 @@ def get_dashboard_payload(page: int, page_size: int) -> dict[str, Any]:
             .limit(page_size)
             .offset((page - 1) * page_size)
         ).fetchall()
+        latest_filament = latest_filament_by_printer(conn, [row._mapping["id"] for row in rows])
 
     return {
         "generated_at": datetime.now().strftime("%H:%M:%S"),
         "sync_status": "Postgres" if database_url().startswith("postgresql") else "Local DB",
         "unresolved_count": unresolved_count,
-        "printers": [dict(row._mapping) for row in rows],
+        "printers": [dashboard_printer(row, latest_filament.get(row._mapping["id"])) for row in rows],
         "current_page": page,
         "total_pages": total_pages,
         "total_printers": total_printers,

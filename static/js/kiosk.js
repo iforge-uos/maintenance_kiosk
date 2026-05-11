@@ -58,9 +58,18 @@
           }
 
           card.className = "printer-card status-" + printer.status.toLowerCase().replace(/\s+/g, "-");
-          card.querySelector("[data-fault-text]").textContent = printer.current_fault_summary || "No active fault";
-          card.querySelector("[data-status]").textContent = printer.status;
-          card.querySelector("[data-reactive-state]").textContent = printer.reactive_state;
+          card.querySelector("[data-fault-text]").textContent = printer.active_problem;
+          card.querySelector("[data-status]").textContent = printer.availability;
+          card.querySelector("[data-action-needed]").textContent = printer.action_needed;
+          card.querySelector("[data-last-weekly]").textContent = printer.last_weekly_at || "Never";
+          card.querySelector("[data-last-reactive]").textContent = printer.last_reactive_at || "Never";
+          card.querySelector("[data-recent-fault]").textContent = printer.recent_fault;
+          card.querySelector("[data-nozzle-life-label]").textContent = printer.nozzle_life_label;
+
+          var nozzleLife = card.querySelector(".nozzle-life");
+          if (nozzleLife) {
+            nozzleLife.style.setProperty("--nozzle-life-percent", printer.nozzle_life_percent + "%");
+          }
         });
       })
       .catch(function () {
