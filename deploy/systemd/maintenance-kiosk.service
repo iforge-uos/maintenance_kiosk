@@ -1,0 +1,18 @@
+[Unit]
+Description=Maintenance Kiosk web app
+Wants=network-online.target
+After=network-online.target postgresql.service
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/home/pi/maintenance_kiosk
+EnvironmentFile=/home/pi/maintenance_kiosk/.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/pi/maintenance_kiosk/.venv/bin/gunicorn --bind 0.0.0.0:5050 app:app
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

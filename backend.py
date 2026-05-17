@@ -686,6 +686,7 @@ def save_weekly_maintenance(
 ) -> str:
     created_at = now_text()
     new_event_id = event_id("w", printer_id)
+    sync_ids: list[int] = []
     technician = technician_from_form(form)
     semester_id = form.get("semester", "")
     semester = next((item["label"] for item in semesters if item["id"] == semester_id), semester_id or "Semester")
@@ -737,8 +738,10 @@ def save_weekly_maintenance(
             .where(printers_table.c.id == printer_id)
             .values(last_weekly_at=created_at[:10], updated_at=created_at)
         )
-        queue_sync(conn, new_event_id, "weekly_log", created_at)
+        sync_ids.append(queue_sync(conn, new_event_id, "weekly_log", created_at))
+        sync_ids.append(queue_sync(conn, new_event_id, "printer_status", created_at, str(printer_id)))
 
+    attempt_immediate_sheet_sync(sync_ids)
     return new_event_id
 
 
@@ -749,6 +752,7 @@ def ensure_reactive_event(printer_id: int, form: Any) -> str:
 
     created_at = now_text()
     new_event_id = event_id("r", printer_id)
+    sync_ids: list[int] = []
     origin = form.get("event_origin", "Technician observed issue")
     symptom = form.get("symptom_category", "")
     urgency = form.get("urgency_state", "Under Maintenance")
@@ -794,7 +798,8 @@ def ensure_reactive_event(printer_id: int, form: Any) -> str:
                 updated_at=created_at,
             )
         )
-        queue_sync(conn, new_event_id, "reactive_start", created_at)
+        sync_ids.append(queue_sync(conn, new_event_id, "reactive_log", created_at))
+        sync_ids.append(queue_sync(conn, new_event_id, "printer_status", created_at, str(printer_id)))
         queue_google_chat_notification(
             conn,
             new_event_id,
@@ -803,6 +808,7 @@ def ensure_reactive_event(printer_id: int, form: Any) -> str:
             f"Fault started on {printer_name}: {issue}. Origin: {origin}. Urgency: {urgency}. Time: {created_at}.",
         )
 
+    attempt_immediate_sheet_sync(sync_ids)
     return new_event_id
 
 
@@ -830,6 +836,7 @@ def save_reactive_event(
     created_at = now_text()
     existing = open_reactive_event(printer_id)
     target_event_id = existing["event_id"] if existing else event_id("r", printer_id)
+    sync_ids: list[int] = []
     technician = technician_from_form(form)
     issue = form.get("current_fault") or form.get("issue_summary") or "Reactive maintenance"
     issue = issue.strip()
@@ -917,7 +924,8 @@ def save_reactive_event(
                 updated_at=created_at,
             )
         )
-        queue_sync(conn, target_event_id, "reactive_log", created_at)
+        sync_ids.append(queue_sync(conn, target_event_id, "reactive_log", created_at))
+        sync_ids.append(queue_sync(conn, target_event_id, "printer_status", created_at, str(printer_id)))
         if event_state == "resolved":
             queue_google_chat_notification(
                 conn,
@@ -927,6 +935,7 @@ def save_reactive_event(
                 f"Fault fixed on {printer_name} by {technician}: {fix_summary or event_summary}. Component: {component or 'Not specified'}. Time: {created_at}.",
             )
 
+    attempt_immediate_sheet_sync(sync_ids)
     return target_event_id
 
 
@@ -952,16 +961,331 @@ def reactive_event_state(state: str) -> str:
     return "open"
 
 
-def queue_sync(conn: Any, event: str, export_type: str, created_at: str) -> None:
-    conn.execute(
+def queue_sync(conn: Any, event: str | None, export_type: str, created_at: str, payload_ref: str | None = None) -> int:
+    result = conn.execute(
         insert(sync_queue_table).values(
             event_id=event,
             export_type=export_type,
-            payload_ref=event,
+            payload_ref=payload_ref or event,
             status="pending",
+            retry_count=0,
             created_at=created_at,
         )
     )
+    return int(result.inserted_primary_key[0])
+
+
+def sync_exists(conn: Any, event: str | None, export_type: str, payload_ref: str | None) -> bool:
+    stmt = select(func.count()).select_from(sync_queue_table).where(sync_queue_table.c.export_type == export_type)
+    if event is None:
+        stmt = stmt.where(sync_queue_table.c.event_id.is_(None))
+    else:
+        stmt = stmt.where(sync_queue_table.c.event_id == event)
+    if payload_ref is None:
+        stmt = stmt.where(sync_queue_table.c.payload_ref.is_(None))
+    else:
+        stmt = stmt.where(sync_queue_table.c.payload_ref == payload_ref)
+    return conn.execute(stmt).scalar_one() > 0
+
+
+def queue_sync_once(conn: Any, event: str | None, export_type: str, created_at: str, payload_ref: str | None = None) -> int | None:
+    if sync_exists(conn, event, export_type, payload_ref or event):
+        return None
+    return queue_sync(conn, event, export_type, created_at, payload_ref)
+
+
+def pending_sheet_sync_jobs(sync_ids: list[int] | None = None, limit: int | None = None) -> list[dict[str, Any]]:
+    stmt = (
+        select(sync_queue_table)
+        .where(sync_queue_table.c.status.in_(["pending", "failed"]))
+        .order_by(sync_queue_table.c.created_at, sync_queue_table.c.sync_id)
+    )
+    if sync_ids is not None:
+        if not sync_ids:
+            return []
+        stmt = stmt.where(sync_queue_table.c.sync_id.in_(sync_ids))
+    if limit:
+        stmt = stmt.limit(limit)
+
+    with engine().connect() as conn:
+        rows = conn.execute(stmt).fetchall()
+    return [dict(row._mapping) for row in rows]
+
+
+def mark_sheet_sync_completed(sync_id: int) -> None:
+    completed_at = now_text()
+    with engine().begin() as conn:
+        conn.execute(
+            update(sync_queue_table)
+            .where(sync_queue_table.c.sync_id == sync_id)
+            .values(status="completed", completed_at=completed_at, last_attempt_at=completed_at, error_message=None)
+        )
+
+
+def mark_sheet_sync_failed(sync_id: int, error_message: str) -> None:
+    failed_at = now_text()
+    with engine().begin() as conn:
+        row = conn.execute(
+            select(sync_queue_table.c.retry_count).where(sync_queue_table.c.sync_id == sync_id)
+        ).fetchone()
+        retry_count = int(row._mapping["retry_count"] if row else 0) + 1
+        conn.execute(
+            update(sync_queue_table)
+            .where(sync_queue_table.c.sync_id == sync_id)
+            .values(
+                status="failed",
+                retry_count=retry_count,
+                last_attempt_at=failed_at,
+                error_message=error_message,
+            )
+        )
+
+
+def weekly_sheet_rows(event: str) -> list[dict[str, Any]]:
+    stmt = (
+        select(
+            maintenance_events_table.c.event_id,
+            maintenance_events_table.c.printer_id,
+            printers_table.c.name.label("printer_name"),
+            maintenance_events_table.c.source,
+            maintenance_events_table.c.technician_name,
+            maintenance_events_table.c.created_at,
+            maintenance_events_table.c.updated_at,
+            maintenance_events_table.c.note,
+            maintenance_events_table.c.summary,
+            maintenance_events_table.c.state,
+            weekly_details_table.c.academic_year,
+            weekly_details_table.c.semester,
+            weekly_details_table.c.week_number,
+            *[weekly_details_table.c[field] for field in WEEKLY_BOOLEAN_FIELDS],
+            weekly_details_table.c.x_movement_km,
+            weekly_details_table.c.y_movement_km,
+            weekly_details_table.c.z_movement_m,
+            weekly_details_table.c.filament_m,
+            weekly_details_table.c.total_print_hours,
+        )
+        .select_from(
+            maintenance_events_table.join(weekly_details_table).join(
+                printers_table,
+                maintenance_events_table.c.printer_id == printers_table.c.id,
+            )
+        )
+        .where(maintenance_events_table.c.event_id == event)
+    )
+    with engine().connect() as conn:
+        rows = conn.execute(stmt).fetchall()
+
+    sheet_rows = []
+    for row in rows:
+        record = dict(row._mapping)
+        sheet_rows.append(
+            {
+                "event_id": record["event_id"],
+                "printer_id": record["printer_id"],
+                "printer_name": record["printer_name"],
+                "source": record["source"],
+                "technician": record["technician_name"] or "Unknown",
+                "created_at": record["created_at"],
+                "updated_at": record["updated_at"],
+                "note": record["note"] or "",
+                "summary": record["summary"],
+                "state": record["state"],
+                "academic_year": record["academic_year"],
+                "semester": record["semester"],
+                "week_number": record["week_number"],
+                **{field: bool(record[field]) for field in WEEKLY_BOOLEAN_FIELDS},
+                "x_movement_km": record["x_movement_km"],
+                "y_movement_km": record["y_movement_km"],
+                "z_movement_m": record["z_movement_m"],
+                "filament_m": record["filament_m"],
+                "total_print_hours": record["total_print_hours"],
+                "exported_at": now_text(),
+            }
+        )
+    return sheet_rows
+
+
+def reactive_sheet_rows(event: str) -> list[dict[str, Any]]:
+    stmt = (
+        select(
+            maintenance_events_table.c.event_id,
+            maintenance_events_table.c.printer_id,
+            printers_table.c.name.label("printer_name"),
+            maintenance_events_table.c.source,
+            maintenance_events_table.c.technician_name,
+            maintenance_events_table.c.created_at,
+            maintenance_events_table.c.updated_at,
+            maintenance_events_table.c.note,
+            maintenance_events_table.c.summary,
+            maintenance_events_table.c.state,
+            reactive_events_table.c.event_state,
+            reactive_events_table.c.origin,
+            reactive_events_table.c.symptom_category,
+            reactive_events_table.c.urgency_state,
+            reactive_events_table.c.issue_summary,
+            reactive_events_table.c.diagnosis_path,
+            reactive_events_table.c.likely_cause,
+            reactive_events_table.c.sop_used,
+            reactive_events_table.c.action_taken,
+            reactive_events_table.c.component_involved,
+            reactive_events_table.c.result_status,
+            reactive_events_table.c.fix_summary,
+            reactive_events_table.c.resolved_at,
+        )
+        .select_from(
+            maintenance_events_table.join(reactive_events_table).join(
+                printers_table,
+                maintenance_events_table.c.printer_id == printers_table.c.id,
+            )
+        )
+        .where(maintenance_events_table.c.event_id == event)
+    )
+    with engine().connect() as conn:
+        rows = conn.execute(stmt).fetchall()
+
+    return [
+        {
+            "event_id": row._mapping["event_id"],
+            "printer_id": row._mapping["printer_id"],
+            "printer_name": row._mapping["printer_name"],
+            "source": row._mapping["source"],
+            "technician": row._mapping["technician_name"] or "Unknown",
+            "created_at": row._mapping["created_at"],
+            "updated_at": row._mapping["updated_at"],
+            "note": row._mapping["note"] or "",
+            "summary": row._mapping["summary"],
+            "state": row._mapping["state"],
+            "event_state": row._mapping["event_state"],
+            "origin": row._mapping["origin"] or "",
+            "symptom_category": row._mapping["symptom_category"] or "",
+            "urgency_state": row._mapping["urgency_state"] or "",
+            "issue_summary": row._mapping["issue_summary"] or "",
+            "diagnosis_path": row._mapping["diagnosis_path"] or "",
+            "likely_cause": row._mapping["likely_cause"] or "",
+            "sop_used": row._mapping["sop_used"] or "",
+            "action_taken": row._mapping["action_taken"] or "",
+            "component_involved": row._mapping["component_involved"] or "",
+            "result_status": row._mapping["result_status"] or "",
+            "fix_summary": row._mapping["fix_summary"] or "",
+            "resolved_at": row._mapping["resolved_at"] or "",
+            "exported_at": now_text(),
+        }
+        for row in rows
+    ]
+
+
+def printer_status_sheet_rows(printer_id: int | None = None) -> list[dict[str, Any]]:
+    stmt = select(printers_table).order_by(printers_table.c.display_order)
+    if printer_id is not None:
+        stmt = stmt.where(printers_table.c.id == printer_id)
+    with engine().connect() as conn:
+        rows = conn.execute(stmt).fetchall()
+        latest_filament = latest_filament_by_printer(conn, [row._mapping["id"] for row in rows])
+
+    sheet_rows = []
+    for row in rows:
+        printer = dashboard_printer(row, latest_filament.get(row._mapping["id"]))
+        sheet_rows.append(
+            {
+                "printer_id": printer["id"],
+                "printer_name": printer["name"],
+                "availability": printer["availability"],
+                "reactive_state": printer["reactive_state"],
+                "active_problem": printer["active_problem"],
+                "recent_fault": printer["recent_fault"],
+                "last_weekly_at": printer["last_weekly_at"] or "",
+                "last_reactive_at": printer["last_reactive_at"] or "",
+                "nozzle_life_used_km": printer["nozzle_life_used_km"],
+                "nozzle_life_percent": printer["nozzle_life_percent"],
+                "nozzle_life_label": printer["nozzle_life_label"],
+                "action_needed": printer["action_needed"],
+                "has_open_fault": bool(printer["has_open_fault"]),
+                "updated_at": printer["updated_at"],
+                "exported_at": now_text(),
+            }
+        )
+    return sheet_rows
+
+
+def sheet_payload_for_sync_job(job: dict[str, Any]) -> dict[str, Any]:
+    export_type = job["export_type"]
+    if export_type == "weekly_log":
+        rows = weekly_sheet_rows(job["event_id"])
+    elif export_type in {"reactive_log", "reactive_start"}:
+        export_type = "reactive_log"
+        rows = reactive_sheet_rows(job["event_id"])
+    elif export_type == "printer_status":
+        printer_id = int(job["payload_ref"]) if job.get("payload_ref") else None
+        rows = printer_status_sheet_rows(printer_id)
+    else:
+        rows = []
+
+    return {
+        "type": export_type,
+        "sync_id": job["sync_id"],
+        "event_id": job.get("event_id"),
+        "payload_ref": job.get("payload_ref"),
+        "rows": rows,
+    }
+
+
+def process_pending_sheet_syncs(sync_ids: list[int] | None = None, limit: int | None = None) -> int:
+    import google_sheets_webhook
+
+    if not google_sheets_webhook.sync_enabled():
+        return 0
+
+    sent_count = 0
+    for job in pending_sheet_sync_jobs(sync_ids=sync_ids, limit=limit):
+        try:
+            google_sheets_webhook.send_payload(sheet_payload_for_sync_job(job))
+        except Exception as exc:
+            mark_sheet_sync_failed(job["sync_id"], str(exc))
+        else:
+            mark_sheet_sync_completed(job["sync_id"])
+            sent_count += 1
+    return sent_count
+
+
+def attempt_immediate_sheet_sync(sync_ids: list[int]) -> int:
+    if not sync_ids:
+        return 0
+    try:
+        return process_pending_sheet_syncs(sync_ids=sync_ids)
+    except Exception:
+        return 0
+
+
+def queue_google_sheets_backfill() -> int:
+    queued = 0
+    queued_at = now_text()
+    with engine().begin() as conn:
+        rows = conn.execute(
+            select(
+                maintenance_events_table.c.event_id,
+                maintenance_events_table.c.event_type,
+                maintenance_events_table.c.created_at,
+            ).order_by(maintenance_events_table.c.created_at)
+        ).fetchall()
+        for row in rows:
+            export_type = "weekly_log" if row._mapping["event_type"] == "weekly" else "reactive_log"
+            sync_id = queue_sync_once(
+                conn,
+                row._mapping["event_id"],
+                export_type,
+                row._mapping["created_at"],
+                row._mapping["event_id"],
+            )
+            if sync_id:
+                queued += 1
+
+        printer_rows = conn.execute(select(printers_table.c.id).order_by(printers_table.c.display_order)).fetchall()
+        for row in printer_rows:
+            printer_ref = str(row._mapping["id"])
+            sync_id = queue_sync_once(conn, None, "printer_status", queued_at, printer_ref)
+            if sync_id:
+                queued += 1
+    return queued
 
 
 def queue_google_chat_notification(conn: Any, event: str, printer_id: int, notification_type: str, body: str) -> None:

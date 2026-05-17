@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Maintenance Kiosk Google Sheets sync worker every 5 minutes
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=5min
+Persistent=true
+Unit=maintenance-kiosk-sheets-sync.service
+
+[Install]
+WantedBy=timers.target

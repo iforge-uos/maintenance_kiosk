@@ -1,0 +1,10 @@
+[Unit]
+Description=Queue Maintenance Kiosk weekly reminder every Monday at 12:00
+
+[Timer]
+OnCalendar=Mon *-*-* 12:00:00
+Persistent=true
+Unit=maintenance-kiosk-weekly-reminder.service
+
+[Install]
+WantedBy=timers.target

@@ -133,8 +133,9 @@ h3 {
 }
 
 .brand-lockup img {
-  width: 142px;
-  max-height: 42px;
+  width: 52px;
+  max-height: 52px;
+  border-radius: 50%;
   object-fit: contain;
 }
 
@@ -988,6 +989,16 @@ textarea {
   line-height: 1.35;
 }
 
+.sop-html-content {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.sop-html-content img {
+  max-width: 100%;
+  height: auto;
+}
+
 .settings-button {
   min-height: 34px;
   display: inline-flex;
@@ -1107,8 +1118,8 @@ textarea {
   }
 
   .brand-lockup img {
-    width: 116px;
-    max-height: 36px;
+    width: 44px;
+    max-height: 44px;
   }
 
   .header-metrics,

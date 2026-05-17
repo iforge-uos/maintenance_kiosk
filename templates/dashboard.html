@@ -1,11 +1,12 @@
 {% extends "base.html" %}
 {% set title = "Dashboard" %}
+{% set page_labels = {1: "Mainspace", 2: "Digital", 3: "Exotic"} %}
 
 {% block content %}
 <section class="screen dashboard-screen" data-dashboard>
   <header class="kiosk-header">
     <div class="brand-lockup">
-      <img src="{{ url_for('static', filename='img/iforge-makerspace-logo.png') }}" alt="iForge makerspace">
+      <img src="{{ url_for('static', filename='img/3d-print-team-logo.jpg') }}" alt="3D print team">
       <div>
         <h1>Print Farm Maintenance Kiosk</h1>
         <span class="muted">{{ payload.total_printers }} active printers</span>
@@ -15,7 +16,7 @@
       <a class="settings-button" href="{{ url_for('settings') }}" aria-label="Settings">Settings</a>
       <span class="sync-pill" data-sync-status>{{ payload.sync_status }}</span>
       <span class="alert-pill"><b data-alert-count>{{ payload.unresolved_count }}</b> faults</span>
-      <span class="page-pill">Page {{ payload.current_page }} / {{ payload.total_pages }}</span>
+      <span class="page-pill">{{ page_labels.get(payload.current_page, "Page " ~ payload.current_page) }}</span>
       <time data-clock>{{ payload.generated_at }}</time>
     </div>
   </header>
@@ -50,7 +51,7 @@
   <nav class="dashboard-pager" aria-label="Dashboard pages">
     <a class="{% if payload.current_page == 1 %}disabled{% endif %}" href="{{ url_for('dashboard', page=payload.current_page - 1) }}">Previous</a>
     {% for page_number in range(1, payload.total_pages + 1) %}
-      <a class="{% if payload.current_page == page_number %}active{% endif %}" href="{{ url_for('dashboard', page=page_number) }}">Page {{ page_number }}</a>
+      <a class="{% if payload.current_page == page_number %}active{% endif %}" href="{{ url_for('dashboard', page=page_number) }}">{{ page_labels.get(page_number, "Page " ~ page_number) }}</a>
     {% endfor %}
     <a class="{% if payload.current_page == payload.total_pages %}disabled{% endif %}" href="{{ url_for('dashboard', page=payload.current_page + 1) }}">Next</a>
   </nav>

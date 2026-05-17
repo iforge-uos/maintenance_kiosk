@@ -97,6 +97,39 @@ class BackendPersistenceTests(unittest.TestCase):
 
         self.assertEqual(len(seen_names), len(set(seen_names)))
 
+    def test_sop_viewer_renders_html_folder_and_assets(self) -> None:
+        sop_dir = Path(self.tmpdir.name) / "sops"
+        sop_folder = sop_dir / "nozzle-change"
+        image_folder = sop_folder / "images"
+        image_folder.mkdir(parents=True)
+        (image_folder / "step.png").write_bytes(b"fake image bytes")
+        (sop_folder / "instruction.html").write_text(
+            (
+                "<html><head><style>.step-photo{max-width:100%;}</style></head>"
+                "<body><h1>Nozzle Change</h1>"
+                '<img class="step-photo" src="images/step.png" alt="Nozzle step">'
+                "</body></html>"
+            )
+        )
+        self.app_module.SOP_DIR = sop_dir
+
+        response = self.client.get("/sops/nozzle-change")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Nozzle Change", response.data)
+        self.assertIn(b".step-photo", response.data)
+        self.assertIn(b"/sop-assets/nozzle-change/images/step.png", response.data)
+
+        file_slug_response = self.client.get("/sops/instruction")
+        self.assertEqual(file_slug_response.status_code, 200)
+        self.assertIn(b"Nozzle Change", file_slug_response.data)
+        self.assertIn(b"/sop-assets/nozzle-change/images/step.png", file_slug_response.data)
+
+        asset_response = self.client.get("/sop-assets/nozzle-change/images/step.png")
+        self.assertEqual(asset_response.status_code, 200)
+        self.assertEqual(asset_response.data, b"fake image bytes")
+        asset_response.close()
+
     def test_manual_reactive_save_persists_history_and_dashboard_state(self) -> None:
         response = self.client.post(
             "/printers/2/reactive/manual",

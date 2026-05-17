@@ -1,0 +1,13 @@
+[Unit]
+Description=Maintenance Kiosk Google Sheets sync worker
+Wants=network-online.target
+After=network-online.target postgresql.service
+
+[Service]
+Type=oneshot
+User=pi
+Group=pi
+WorkingDirectory=/home/pi/maintenance_kiosk
+EnvironmentFile=/home/pi/maintenance_kiosk/.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/pi/maintenance_kiosk/.venv/bin/python /home/pi/maintenance_kiosk/google_sheets_sync_worker.py --limit 50

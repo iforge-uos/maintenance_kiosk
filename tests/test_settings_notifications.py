@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib
 import io
+import json
 import os
 import sys
 import tempfile
@@ -18,6 +19,7 @@ class SettingsNotificationTests(unittest.TestCase):
 
         for module_name in ("app", "backend", "notifications"):
             sys.modules.pop(module_name, None)
+        os.environ.pop("GOOGLE_CHAT_WEBHOOK_SECRET", None)
 
         self.app_module = importlib.import_module("app")
         self.backend = importlib.import_module("backend")
@@ -27,6 +29,7 @@ class SettingsNotificationTests(unittest.TestCase):
         for module_name in ("app", "backend", "notifications"):
             sys.modules.pop(module_name, None)
         os.environ.pop("DATABASE_URL", None)
+        os.environ.pop("GOOGLE_CHAT_WEBHOOK_SECRET", None)
         self.tmpdir.cleanup()
 
     def test_saves_and_lists_active_technicians(self) -> None:
@@ -251,6 +254,117 @@ class SettingsNotificationTests(unittest.TestCase):
         self.assertEqual(jobs[0]["status"], "failed")
         self.assertEqual(jobs[0]["retry_count"], 1)
         self.assertIn("SMTP unavailable", jobs[0]["error_message"])
+
+    def test_google_chat_direct_webhook_posts_plain_chat_payload(self) -> None:
+        notifications = importlib.import_module("notifications")
+        sent_payloads = []
+
+        class FakeResponse:
+            status = 200
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, traceback):
+                return False
+
+            def read(self):
+                return b"{}"
+
+        def fake_urlopen(request, timeout):
+            sent_payloads.append(
+                {
+                    "url": request.full_url,
+                    "payload": json.loads(request.data.decode("utf-8")),
+                    "timeout": timeout,
+                }
+            )
+            return FakeResponse()
+
+        original_urlopen = notifications.urllib.request.urlopen
+        notifications.urllib.request.urlopen = fake_urlopen
+        try:
+            notifications.send_google_chat_job(
+                {
+                    "target_url": "https://chat.googleapis.com/v1/spaces/example",
+                    "body": "Picasso fault triggered",
+                }
+            )
+        finally:
+            notifications.urllib.request.urlopen = original_urlopen
+
+        self.assertEqual(sent_payloads[0]["url"], "https://chat.googleapis.com/v1/spaces/example")
+        self.assertEqual(sent_payloads[0]["payload"], {"text": "Picasso fault triggered"})
+        self.assertEqual(sent_payloads[0]["timeout"], 20)
+
+    def test_google_chat_apps_script_relay_posts_shared_secret_payload(self) -> None:
+        os.environ["GOOGLE_CHAT_WEBHOOK_SECRET"] = "relay-secret"
+        notifications = importlib.import_module("notifications")
+        sent_payloads = []
+
+        class FakeResponse:
+            status = 200
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, traceback):
+                return False
+
+            def read(self):
+                return b"{}"
+
+        def fake_urlopen(request, timeout):
+            sent_payloads.append(json.loads(request.data.decode("utf-8")))
+            return FakeResponse()
+
+        original_urlopen = notifications.urllib.request.urlopen
+        notifications.urllib.request.urlopen = fake_urlopen
+        try:
+            notifications.send_google_chat_job(
+                {
+                    "target_url": "https://script.google.com/macros/s/example/exec",
+                    "body": "Picasso fixed",
+                }
+            )
+        finally:
+            notifications.urllib.request.urlopen = original_urlopen
+
+        self.assertEqual(sent_payloads, [{"text": "Picasso fixed", "secret": "relay-secret"}])
+
+    def test_google_chat_apps_script_relay_rejects_unsuccessful_response_body(self) -> None:
+        os.environ["GOOGLE_CHAT_WEBHOOK_SECRET"] = "relay-secret"
+        notifications = importlib.import_module("notifications")
+
+        class FakeResponse:
+            status = 200
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, traceback):
+                return False
+
+            def read(self):
+                return b'{"ok": false, "error": "Invalid secret"}'
+
+        def fake_urlopen(request, timeout):
+            return FakeResponse()
+
+        original_urlopen = notifications.urllib.request.urlopen
+        notifications.urllib.request.urlopen = fake_urlopen
+        try:
+            with self.assertRaises(RuntimeError) as error:
+                notifications.send_google_chat_job(
+                    {
+                        "target_url": "https://script.google.com/macros/s/example/exec",
+                        "body": "Picasso fixed",
+                    }
+                )
+        finally:
+            notifications.urllib.request.urlopen = original_urlopen
+
+        self.assertIn("Invalid secret", str(error.exception))
 
 
 class WorkerBootstrapTests(unittest.TestCase):

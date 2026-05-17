@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
 import backend
-from flask import Flask, abort, jsonify, redirect, render_template, request, url_for
+from flask import Flask, abort, jsonify, redirect, render_template, request, send_from_directory, url_for
 from markupsafe import Markup, escape
 
 
@@ -17,6 +18,12 @@ BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 SOP_DIR = BASE_DIR / "sops"
 DIAGNOSIS_TREE_PATH = DATA_DIR / "diagnosis_tree.json"
+HTML_STYLE_RE = re.compile(r"<style\b[^>]*>(.*?)</style>", re.IGNORECASE | re.DOTALL)
+HTML_BODY_RE = re.compile(r"<body\b[^>]*>(.*?)</body>", re.IGNORECASE | re.DOTALL)
+HTML_RELATIVE_IMAGE_RE = re.compile(
+    r"(?P<prefix><img\b[^>]*\bsrc=[\"'])(?P<src>[^\"']+)(?P<suffix>[\"'])",
+    re.IGNORECASE,
+)
 
 
 SEMESTERS = [
@@ -583,6 +590,80 @@ def markdown_to_html(markdown: str) -> Markup:
     return Markup("\n".join(html_lines))
 
 
+def path_inside(child: Path, parent: Path) -> bool:
+    try:
+        child.resolve().relative_to(parent.resolve())
+    except ValueError:
+        return False
+    return True
+
+
+def sop_folder(slug: str) -> Path | None:
+    folder = SOP_DIR / slug
+    if not folder.is_dir() or not path_inside(folder, SOP_DIR):
+        return None
+    if folder.resolve() == SOP_DIR.resolve():
+        return None
+    return folder
+
+
+def html_sop_path(slug: str) -> Path | None:
+    folder = sop_folder(slug)
+    if folder:
+        preferred = folder / f"{slug}.html"
+        if preferred.exists():
+            return preferred
+        html_files = sorted(folder.glob("*.html"))
+        if html_files:
+            return html_files[0]
+
+    flat_file = SOP_DIR / f"{slug}.html"
+    if flat_file.exists() and path_inside(flat_file, SOP_DIR):
+        return flat_file
+    for folder in sorted(path for path in SOP_DIR.iterdir() if path.is_dir()):
+        candidate = folder / f"{slug}.html"
+        if candidate.exists() and path_inside(candidate, SOP_DIR):
+            return candidate
+    return None
+
+
+def local_html_asset_url(slug: str, src: str) -> str:
+    if src.startswith(("/", "#", "http://", "https://", "data:", "mailto:", "tel:")):
+        return src
+    return url_for("sop_asset", slug=slug, filename=src)
+
+
+def scoped_html_styles(styles: str) -> str:
+    scoped_rules = []
+    for rule in styles.split("}"):
+        if "{" not in rule:
+            continue
+        selectors, declarations = rule.split("{", 1)
+        scoped_selectors = []
+        for selector in selectors.split(","):
+            selector = selector.strip()
+            if selector:
+                scoped_selectors.append(f".sop-html-content {selector}")
+        if scoped_selectors:
+            scoped_rules.append(f"{', '.join(scoped_selectors)} {{{declarations}}}")
+    return "\n".join(scoped_rules)
+
+
+def html_to_sop_content(html: str, slug: str) -> Markup:
+    styles = "\n".join(HTML_STYLE_RE.findall(html))
+    body_match = HTML_BODY_RE.search(html)
+    body = body_match.group(1) if body_match else html
+
+    def rewrite_image(match: re.Match[str]) -> str:
+        return f"{match.group('prefix')}{local_html_asset_url(slug, match.group('src'))}{match.group('suffix')}"
+
+    body = HTML_RELATIVE_IMAGE_RE.sub(rewrite_image, body)
+    if styles:
+        body = f"<style>{scoped_html_styles(styles)}</style>\n{body}"
+    body = f'<div class="sop-html-content">{body}</div>'
+    return Markup(body)
+
+
 @app.get("/")
 def dashboard():
     page = request.args.get("page", 1, type=int)
@@ -593,6 +674,14 @@ def dashboard():
 def dashboard_api():
     page = request.args.get("page", 1, type=int)
     return jsonify(get_dashboard_payload(page))
+
+
+@app.get("/sop-assets/<slug>/<path:filename>")
+def sop_asset(slug: str, filename: str):
+    folder = sop_folder(slug)
+    if not folder:
+        abort(404)
+    return send_from_directory(folder, filename)
 
 
 @app.route("/settings", methods=["GET", "POST"])
@@ -806,6 +895,15 @@ def history(printer_id: int):
 
 @app.get("/sops/<slug>")
 def sop(slug: str):
+    html_path = html_sop_path(slug)
+    if html_path:
+        asset_slug = html_path.parent.name if html_path.parent != SOP_DIR else slug
+        return render_template(
+            "sop.html",
+            slug=slug,
+            content=html_to_sop_content(html_path.read_text(encoding="utf-8"), asset_slug),
+        )
+
     sop_path = SOP_DIR / f"{slug}.md"
     if sop_path.exists():
         return render_template("sop.html", slug=slug, content=markdown_to_html(sop_path.read_text()))

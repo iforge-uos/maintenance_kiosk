@@ -11,6 +11,7 @@ import backend
 
 
 def send_email_job(job: dict[str, Any]) -> None:
+    backend.load_env_file()
     message = EmailMessage()
     message["Subject"] = job["subject"] or "Maintenance kiosk notification"
     message["From"] = os.environ["SMTP_FROM_EMAIL"]
@@ -29,7 +30,13 @@ def send_email_job(job: dict[str, Any]) -> None:
 
 
 def send_google_chat_job(job: dict[str, Any]) -> None:
-    payload = json.dumps({"text": job["body"] or ""}).encode("utf-8")
+    backend.load_env_file()
+    message = {"text": job["body"] or ""}
+    relay_secret = os.environ.get("GOOGLE_CHAT_WEBHOOK_SECRET", "").strip()
+    if relay_secret:
+        message["secret"] = relay_secret
+
+    payload = json.dumps(message).encode("utf-8")
     request = urllib.request.Request(
         job["target_url"],
         data=payload,
@@ -37,7 +44,20 @@ def send_google_chat_job(job: dict[str, Any]) -> None:
         method="POST",
     )
     with urllib.request.urlopen(request, timeout=20) as response:
-        response.read()
+        response_body = response.read().decode("utf-8")
+        status = response.status
+
+    if status < 200 or status >= 300:
+        raise RuntimeError(f"Google Chat webhook returned HTTP {status}: {response_body}")
+    if not response_body.strip():
+        return
+
+    try:
+        parsed = json.loads(response_body)
+    except json.JSONDecodeError:
+        return
+    if parsed.get("ok") is False or parsed.get("success") is False:
+        raise RuntimeError(f"Google Chat webhook rejected message: {response_body}")
 
 
 def process_pending_notifications(
