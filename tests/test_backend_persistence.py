@@ -8,6 +8,27 @@ import unittest
 from pathlib import Path
 
 
+class BackendConfigurationTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tmpdir = tempfile.TemporaryDirectory()
+        os.environ["DATABASE_URL"] = ""
+        sys.modules.pop("backend", None)
+
+    def tearDown(self) -> None:
+        sys.modules.pop("backend", None)
+        os.environ.pop("DATABASE_URL", None)
+        self.tmpdir.cleanup()
+
+    def test_blank_database_url_uses_local_sqlite_file(self) -> None:
+        backend = importlib.import_module("backend")
+        backend.DEFAULT_SQLITE_PATH = Path(self.tmpdir.name) / "data" / "kiosk.db"
+
+        self.assertEqual(
+            backend.database_url(),
+            f"sqlite:///{Path(self.tmpdir.name) / 'data' / 'kiosk.db'}",
+        )
+
+
 class BackendPersistenceTests(unittest.TestCase):
     def setUp(self) -> None:
         self.tmpdir = tempfile.TemporaryDirectory()

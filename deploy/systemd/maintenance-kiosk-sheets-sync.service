@@ -1,7 +1,7 @@
 [Unit]
 Description=Maintenance Kiosk Google Sheets sync worker
 Wants=network-online.target
-After=network-online.target postgresql.service
+After=network-online.target
 
 [Service]
 Type=oneshot

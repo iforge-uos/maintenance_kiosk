@@ -1,7 +1,7 @@
 [Unit]
 Description=Maintenance Kiosk web app
 Wants=network-online.target
-After=network-online.target postgresql.service
+After=network-online.target
 
 [Service]
 Type=simple

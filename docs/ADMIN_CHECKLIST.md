@@ -2,6 +2,18 @@
 
 Use this when setting up or maintaining the kiosk.
 
+## Local Database
+
+- For first Raspberry Pi testing, leave `DATABASE_URL` blank in `.env`.
+- Confirm the data file exists after the first app run: `data/kiosk.db`.
+- Back up the local database before major changes:
+
+```bash
+sudo systemctl stop maintenance-kiosk.service
+cp /home/pi/maintenance_kiosk/data/kiosk.db /home/pi/kiosk-backup-$(date +%Y%m%d).db
+sudo systemctl start maintenance-kiosk.service
+```
+
 ## Technician Settings
 
 - Open `/settings`.

@@ -5,8 +5,8 @@ This guide turns the maintenance kiosk into a Raspberry Pi 4 service. The MacBoo
 ## What Runs On The Pi
 
 - **Flask web app**: serves the dashboard, printer pages, Settings page, SOP pages, and maintenance forms.
-- **Postgres database**: stores the real maintenance data. This is the source of truth.
-- **Google Sheets sync worker**: copies selected Postgres data to Google Sheets through Apps Script.
+- **Local SQLite database**: stores the real maintenance data in `data/kiosk.db`. This is the source of truth for the first Pi test.
+- **Google Sheets sync worker**: copies selected local data to Google Sheets through Apps Script.
 - **Notification worker**: retries pending email and Google Chat messages.
 - **Weekly reminder worker**: queues reminder emails every Monday at 12:00 Pi local time.
 - **systemd**: starts the web app on boot and runs the background workers on timers.
@@ -17,7 +17,7 @@ Use Raspberry Pi OS 64-bit if possible.
 
 ```bash
 sudo apt update
-sudo apt install -y git python3 python3-venv python3-pip postgresql postgresql-contrib chromium-browser unclutter
+sudo apt install -y git python3 python3-venv python3-pip chromium-browser unclutter
 ```
 
 Set the Pi timezone before configuring weekly reminders. The timer uses the Pi local timezone.
@@ -52,17 +52,21 @@ python -m pip install -r requirements.txt
 
 `gunicorn` is included in `requirements.txt` for the production web service. It runs the Flask app more reliably than the Flask development server.
 
-## 4. Create The Postgres Database
+## 4. Use Local SQLite Storage
 
-Choose a real password and keep it in the Pi `.env` file.
+For first testing, skip Postgres. The app stores data locally in:
 
-```bash
-sudo -u postgres createuser maintenance_kiosk
-sudo -u postgres createdb maintenance_kiosk -O maintenance_kiosk
-sudo -u postgres psql -c "ALTER USER maintenance_kiosk WITH PASSWORD 'CHANGE_ME_LONG_PASSWORD';"
+```text
+/home/pi/maintenance_kiosk/data/kiosk.db
 ```
 
-If the user or database already exists, Postgres will report that. In that case, just confirm the password and continue.
+This file is a SQLite database. SQLite is a small local database stored as one file, so it does not need a database server, database user, or password.
+
+Back it up by copying the file after the app has been stopped:
+
+```bash
+cp /home/pi/maintenance_kiosk/data/kiosk.db /home/pi/kiosk-backup-$(date +%Y%m%d).db
+```
 
 ## 5. Create The Pi `.env`
 
@@ -74,7 +78,7 @@ nano .env
 Recommended Pi values:
 
 ```dotenv
-DATABASE_URL=postgresql+psycopg://maintenance_kiosk:CHANGE_ME_LONG_PASSWORD@localhost:5432/maintenance_kiosk
+DATABASE_URL=
 KIOSK_BASE_URL=http://raspberrypi.local:5050
 
 SMTP_HOST=smtp.gmail.com
@@ -92,9 +96,11 @@ GOOGLE_SHEETS_WEBHOOK_SECRET=use-a-long-random-secret
 
 Use a Gmail app password for SMTP. Do not put your normal Google password in `.env`.
 
+Leave `DATABASE_URL` blank unless you deliberately move to Postgres later.
+
 ## 6. Configure Google Sheets Copy
 
-Postgres stays the real database. Google Sheets is only a reporting and backup copy.
+The local SQLite database stays the real database. Google Sheets is only a reporting and backup copy.
 
 1. Create one Google Spreadsheet.
 2. Open **Extensions > Apps Script**.
@@ -201,7 +207,7 @@ Manual workflow test:
 5. Mark that fault fixed.
 6. Run `.venv/bin/python notification_worker.py`.
 7. Run `.venv/bin/python google_sheets_sync_worker.py`.
-8. Confirm Postgres pages, Google Sheets, email, and Google Chat all update.
+8. Confirm kiosk pages, Google Sheets, email, and Google Chat all update.
 
 ## 9. Install systemd Services
 
@@ -269,14 +275,26 @@ sudo reboot
 
 **The web app does not start**
 
-Check `journalctl -u maintenance-kiosk.service -n 100 --no-pager`. Most failures are wrong `.env` paths, bad database passwords, or missing Python dependencies.
+Check `journalctl -u maintenance-kiosk.service -n 100 --no-pager`. Most failures are wrong `.env` paths, an accidentally filled `DATABASE_URL`, or missing Python dependencies.
 
-**Postgres login fails**
+**Where is the local data stored?**
 
-Confirm the password in `.env` matches the Postgres user:
+The local database is:
+
+```text
+/home/pi/maintenance_kiosk/data/kiosk.db
+```
+
+If you delete this file, the app will create a fresh database and seed starter data again.
+
+**The local database should be backed up**
+
+Stop the app before copying the database:
 
 ```bash
-sudo -u postgres psql -c "ALTER USER maintenance_kiosk WITH PASSWORD 'CHANGE_ME_LONG_PASSWORD';"
+sudo systemctl stop maintenance-kiosk.service
+cp /home/pi/maintenance_kiosk/data/kiosk.db /home/pi/kiosk-backup-$(date +%Y%m%d).db
+sudo systemctl start maintenance-kiosk.service
 ```
 
 **Weekly reminder did not send at Monday 12:00**
@@ -298,7 +316,7 @@ cd /home/pi/maintenance_kiosk
 .venv/bin/python google_sheets_sync_worker.py --limit 10
 ```
 
-If it still fails, check the `sync_queue` rows in Postgres and confirm `GOOGLE_SHEETS_WEBHOOK_URL` and `GOOGLE_SHEETS_WEBHOOK_SECRET`.
+If it still fails, check the local database `sync_queue` rows and confirm `GOOGLE_SHEETS_WEBHOOK_URL` and `GOOGLE_SHEETS_WEBHOOK_SECRET`.
 
 **Google Chat did not update**
 

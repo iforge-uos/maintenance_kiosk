@@ -1,6 +1,6 @@
 # Print Farm Maintenance Kiosk Frontend
 
-Compact Flask kiosk app for an 800x480 Raspberry Pi touchscreen, with a SQLAlchemy backend that can run on PostgreSQL.
+Compact Flask kiosk app for an 800x480 Raspberry Pi touchscreen, with a SQLAlchemy backend. For first Raspberry Pi testing, it stores data locally in `data/kiosk.db` using SQLite. PostgreSQL can be added later if needed.
 
 For the full Raspberry Pi 4 deployment path, use `docs/RASPBERRY_PI_SETUP.md`.
 For routine setup checks, use `docs/ADMIN_CHECKLIST.md`.
@@ -47,7 +47,7 @@ sops/
 
 Open the SOP with either `/sops/nozzle-change` or `/sops/instruction`. Image paths such as `images/step-1.png` are served by the kiosk automatically.
 
-## PostgreSQL Backend
+## Local Data Storage
 
 Install dependencies:
 
@@ -55,18 +55,16 @@ Install dependencies:
 python3 -m pip install -r requirements.txt
 ```
 
-Create a local PostgreSQL database and user:
-
-```bash
-createuser maintenance_kiosk
-createdb maintenance_kiosk -O maintenance_kiosk
-psql -d maintenance_kiosk -c "ALTER USER maintenance_kiosk WITH PASSWORD 'maintenance_kiosk';"
-```
-
 Create `.env` from the example:
 
 ```bash
 cp .env.example .env
+```
+
+Leave `DATABASE_URL` blank for local SQLite storage:
+
+```dotenv
+DATABASE_URL=
 ```
 
 Then run the app:
@@ -77,13 +75,19 @@ python3 app.py
 
 The app reads `DATABASE_URL`, creates the tables if needed, and seeds the initial printer/demo records only when the `printers` table is empty.
 
-If `DATABASE_URL` is not set, the app falls back to `data/kiosk.db` so the UI can still preview without Postgres. For the Raspberry Pi deployment, use PostgreSQL.
+If `DATABASE_URL` is blank, the app stores data in `data/kiosk.db`. That is the recommended first Raspberry Pi test setup because it avoids database server setup.
+
+Later, to move to PostgreSQL, set `DATABASE_URL` to a PostgreSQL connection string such as:
+
+```dotenv
+DATABASE_URL=postgresql+psycopg://maintenance_kiosk:password@localhost:5432/maintenance_kiosk
+```
 
 The backend code lives in `backend.py`. Flask routes call that repository layer instead of reading in-memory mock data, so weekly maintenance and reactive logs persist.
 
 ## Google Sheets Copy
 
-PostgreSQL is still the source of truth. Google Sheets is an operational copy for reports and backup.
+The local kiosk database is still the source of truth. Google Sheets is an operational copy for reports and backup.
 
 University SSO accounts can block service-account access, so this app uses a Google Apps Script webhook instead of logging the Raspberry Pi into Google. Create a Google Sheet, open Apps Script, paste the code from `docs/google_sheets_apps_script_webhook.js`, and deploy it as a web app. In Apps Script project settings, add a script property:
 
@@ -99,9 +103,9 @@ GOOGLE_SHEETS_WEBHOOK_URL=https://script.google.com/macros/s/your-deployment-id/
 GOOGLE_SHEETS_WEBHOOK_SECRET=the-same-long-random-secret-used-in-apps-script
 ```
 
-The kiosk saves to Postgres first, then tries to send the update to Google Sheets. If Google is offline or blocked, the maintenance save still succeeds and the sync row remains in `sync_queue` for retry.
+The kiosk saves locally first, then tries to send the update to Google Sheets. If Google is offline or blocked, the maintenance save still succeeds and the sync row remains in `sync_queue` for retry.
 
-Backfill existing Postgres data and retry pending sync rows:
+Backfill existing local data and retry pending sync rows:
 
 ```bash
 python3 google_sheets_sync_worker.py --backfill
