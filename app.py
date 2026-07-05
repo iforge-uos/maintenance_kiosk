@@ -465,10 +465,18 @@ def find_printer(printer_id: int) -> dict[str, Any]:
     abort(404)
 
 
+_diagnosis_tree_cache: tuple[float, dict[str, Any]] | None = None
+
+
 def load_diagnosis_tree() -> dict[str, Any]:
-    if not DIAGNOSIS_TREE_PATH.exists():
+    global _diagnosis_tree_cache
+    try:
+        mtime = DIAGNOSIS_TREE_PATH.stat().st_mtime
+    except OSError:
         return {"categories": {}, "nodes": {}, "sops": {}}
-    return json.loads(DIAGNOSIS_TREE_PATH.read_text())
+    if _diagnosis_tree_cache is None or _diagnosis_tree_cache[0] != mtime:
+        _diagnosis_tree_cache = (mtime, json.loads(DIAGNOSIS_TREE_PATH.read_text()))
+    return _diagnosis_tree_cache[1]
 
 
 def diagnosis_categories() -> list[tuple[str, dict[str, Any]]]:
@@ -514,6 +522,26 @@ def diagnosis_result_prefill(node: dict[str, Any] | None) -> dict[str, Any] | No
         "diagnosis_description": node.get("description", ""),
         "sop_ids": node.get("sop_ids", []),
     }
+
+
+def diagnosis_back_url(printer_id: int, category_id: str | None, path: list[str], trail: list[str]) -> str | None:
+    if not category_id:
+        return None
+    if not path:
+        return url_for("diagnosis", printer_id=printer_id)
+
+    previous_path = path[:-1]
+    previous_trail = trail[:-1]
+    query: dict[str, Any] = {
+        "printer_id": printer_id,
+        "category": category_id,
+        "node": path[-1],
+    }
+    if previous_path:
+        query["path"] = "|".join(previous_path)
+    if previous_trail:
+        query["trail"] = "|".join(previous_trail)
+    return url_for("diagnosis", **query)
 
 
 def get_dashboard_payload(page: int = 1) -> dict[str, Any]:
@@ -790,6 +818,7 @@ def diagnosis(printer_id: int):
     category_id = request.args.get("category")
     node_id = request.args.get("node")
     trail = [item for item in request.args.get("trail", "").split("|") if item]
+    path = [item for item in request.args.get("path", "").split("|") if item]
 
     if not category_id:
         return render_template(
@@ -800,6 +829,8 @@ def diagnosis(printer_id: int):
             node=None,
             node_id=None,
             trail=trail,
+            path=path,
+            back_url=None,
             sops={},
         )
 
@@ -820,6 +851,8 @@ def diagnosis(printer_id: int):
         node=node,
         node_id=node_id,
         trail=trail,
+        path=path,
+        back_url=diagnosis_back_url(printer_id, category_id, path, trail),
         sops=tree.get("sops", {}),
     )
 

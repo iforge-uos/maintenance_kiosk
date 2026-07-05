@@ -11,6 +11,9 @@
       </span>
     </div>
     <nav class="header-actions">
+      {% if back_url %}
+        <a href="{{ back_url }}">Back</a>
+      {% endif %}
       <a href="{{ url_for('reactive_start', printer_id=printer.id) }}">Reactive Start</a>
       <a href="{{ url_for('printer_detail', printer_id=printer.id) }}">Actions</a>
     </nav>
@@ -41,9 +44,10 @@
         <p class="help-text">{{ node.help_text }}</p>
       {% endif %}
       <div class="answer-grid">
+        {% set next_path = (path + [node_id])|join('|') %}
         {% for option in node.options %}
           {% set next_trail = (trail + [option.label])|join('|') %}
-          <a href="{{ url_for('diagnosis', printer_id=printer.id, category=selected_category[0], node=option.next, trail=next_trail) }}">
+          <a href="{{ url_for('diagnosis', printer_id=printer.id, category=selected_category[0], node=option.next, trail=next_trail, path=next_path) }}">
             {{ option.label }}
           </a>
         {% endfor %}

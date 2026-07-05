@@ -151,6 +151,29 @@ class BackendPersistenceTests(unittest.TestCase):
         self.assertEqual(asset_response.data, b"fake image bytes")
         asset_response.close()
 
+    def test_diagnosis_first_step_has_back_link_to_category_picker(self) -> None:
+        response = self.client.get("/printers/2/diagnosis?category=filament_not_sticking")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b">Back<", response.data)
+        self.assertIn(b'href="/printers/2/diagnosis"', response.data)
+        self.assertIn(b"path=q_filament_not_sticking_1", response.data)
+
+    def test_diagnosis_deeper_step_has_back_link_to_previous_question(self) -> None:
+        response = self.client.get(
+            "/printers/2/diagnosis"
+            "?category=filament_not_sticking"
+            "&node=q_filament_not_sticking_2"
+            "&trail=No"
+            "&path=q_filament_not_sticking_1"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(
+            b'href="/printers/2/diagnosis?category=filament_not_sticking&amp;node=q_filament_not_sticking_1"',
+            response.data,
+        )
+
     def test_manual_reactive_save_persists_history_and_dashboard_state(self) -> None:
         response = self.client.post(
             "/printers/2/reactive/manual",
