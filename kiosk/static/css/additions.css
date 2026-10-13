@@ -1,3 +1,12 @@
 /* Small functional additions; the original kiosk stylesheet stays unchanged. */
 [hidden] { display: none !important; }
 .header-metrics [aria-disabled="true"] { opacity: .35; pointer-events: none; }
+
+/* Match the existing header controls so Home fits the 800-pixel display. */
+.dashboard-screen .settings-button { font-size: 12px; }
+
+/* Panel colours identify sections; the badges continue to show printer status. */
+.detail-layout > .printer-status-panel { background: #fff4e5; }
+.detail-layout > .action-menu-panel { background: #edf4fc; }
+.detail-layout > .recent-panel { background: #edf7f2; }
+.detail-layout > .sop-panel { background: #fcefeb; }

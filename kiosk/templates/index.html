@@ -8,6 +8,7 @@
   <title>{{ page|title }} · Print Farm Maintenance Kiosk</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/kiosk.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script defer src="{{ url_for('static', filename='navigation.js') }}"></script>
   <script defer src="{{ url_for('static', filename='app.js') }}"></script>
 </head>
 <body class="admin-kiosk" data-page="{{ page }}">
@@ -21,6 +22,7 @@
         </div>
         <nav class="header-actions" aria-label="Settings navigation">
           <button id="back-button" class="button" type="button">← Back</button>
+          <a id="home-button" href="/" data-home>Home</a>
           <a href="/settings" data-route>Settings</a>
           <a href="/testing" data-route>Testing</a>
         </nav>

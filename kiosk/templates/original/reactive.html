@@ -11,6 +11,7 @@
     </div>
     <nav class="header-actions">
       <a href="{{ back_url }}" data-back>Back</a>
+      <a href="/" data-home>Home</a>
       {% if quick_fix and quick_fix.sop_slug %}
         <a href="{{ url_for('ui.sop', slug=quick_fix.sop_slug, printer=printer.id) }}">Open SOP</a>
       {% endif %}

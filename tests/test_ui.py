@@ -93,11 +93,9 @@ def client(app):
 ])
 def test_screens_render_and_back_links_work(client, route):
     page = Page(client.get(route))
-    if route in {"/", "/dashboard"}:
-        assert any(tag == "a" and attrs.get("aria-disabled") == "true" and "href" not in attrs
-                   for tag, attrs in page.elements)
-    else:
-        assert page.back_links, route
+    assert page.back_links, route
+    assert [attrs["href"] for tag, attrs in page.elements
+            if tag == "a" and "data-home" in attrs] == ["/"]
     for target in page.back_links:
         assert client.get(target).status_code == 200, target
     assert client.get("/api/state").json["records"] == []
@@ -326,7 +324,7 @@ def test_configured_https_and_local_pdf_sops_are_accessible(app, client, tmp_pat
     page = Page(client.get("/sops/" + sop_id + "?printer=core-one-05"))
     assert document_url in page.links
     assert page.back_links == ["/printers/core-one-05/diagnosis"]
-    assert "/dashboard?page=2" in page.links
+    assert "/" in page.links
     monkeypatch.setattr(ui, "SOP_DIR", tmp_path)
     document = tmp_path / "maintenance.pdf"
     document.write_bytes(b"%PDF-1.4\n%%EOF")

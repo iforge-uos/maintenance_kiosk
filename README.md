@@ -2,9 +2,11 @@
 
 A Flask touchscreen app for weekly maintenance, reactive faults, guided diagnosis, and printer status. Maintenance is entered through the kiosk; **Google Sheets in `threedprintingiforge@gmail.com`’s Google Drive is the shared reporting store**. Durable local files preserve records and queued deliveries during outages. No PostgreSQL or SQLite is required.
 
-The app includes editable Settings, Back navigation, an integration Testing page, configurable SMTP email and Discord webhooks, and a Raspberry Pi GPIO service with a separate mock mode. External integrations start disabled. This is a supervised local kiosk with no login: keep the web server on loopback.
+The app includes editable Settings, Home and Back navigation, an integration Testing page, configurable SMTP email and Discord webhooks, and a Raspberry Pi GPIO service with a separate mock mode. External integrations start disabled. This is a supervised local kiosk with no login: keep the web server on loopback.
 
 The interface preserves the original **800×480 Raspberry Pi touchscreen** design, stylesheet, logos, and maintenance screens from the repository's `Franklin-vibe-fable` branch at `da4dc271f55b226cb3ac7f905d49b37a6951f2fe`. Keep this appearance and resolution when adding features. The dashboard uses the original 2×2 printer grid, with four printers per page and Mainspace/Digital/Exotic page labels; the default configuration has ten printers, eight weekly checks (including the filament sensor), and a 13-week semester. Settings and Testing use the same compact controls, with scrolling inside their content panes.
+
+**New users:** Read the [illustrated user handbook](docs/handbook.pdf) or print the [one-page quick reference](docs/quick-reference.pdf). Edition 1.1 uses Simplified Technical English and current screenshots. **Home** opens the first dashboard page. **Back** returns to the previous kiosk screen and skips Settings and Testing. The four coloured panels on a printer’s Actions screen identify sections; status badges still show availability.
 
 **Installing on a Raspberry Pi 3A+?** Follow the [Raspberry Pi setup guide](docs/RASPBERRY_PI_SETUP.md) for the installer, automatic boot, touchscreen browser, updates, and backups. It supports existing Raspberry Pi OS Bookworm or Trixie installations.
 

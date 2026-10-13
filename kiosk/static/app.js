@@ -81,14 +81,15 @@
     if(!preserveSettings&&!await mayLeave())return;
     if(!nextPage){location.assign(url);return;}
     historyIndex+=replace?0:1;
-    history[replace?'replaceState':'pushState']({kiosk:true,index:historyIndex,url},'',url);
+    history[replace?'replaceState':'pushState']({...history.state,kiosk:true,index:historyIndex,url},'',url);
     applyLocation(url,preserveSettings);
   }
-  history.replaceState({kiosk:true,index:0,url:currentUrl},'',currentUrl);
+  history.replaceState({...history.state,kiosk:true,index:0,url:currentUrl},'',currentUrl);
   window.addEventListener('popstate',async event=>{if(restoringHistory){restoringHistory=false;return;}const target=event.state;if(!target?.kiosk)return;const previous=historyIndex;const targetUrl=location.pathname+location.search;const preserve=page==='settings'&&getPage(targetUrl)==='settings'&&!secretDirty;if(!preserve&&(dirty||treeDirty||secretDirty)){restoringHistory=true;history.go(previous-target.index);if(!await mayLeave())return;restoringHistory=true;history.go(target.index-previous);}historyIndex=target.index;applyLocation(targetUrl,preserve);});
   window.addEventListener('beforeunload',event=>{if(dirty||treeDirty||secretDirty){event.preventDefault();event.returnValue='';}});
   document.addEventListener('click',event=>{const link=event.target.closest('a[data-route]');if(!link||event.ctrlKey||event.metaKey||event.shiftKey||event.altKey)return;event.preventDefault();navigate(link.getAttribute('href'));});
-  $('#back-button').addEventListener('click',()=>{if(historyIndex>0)history.back();else navigate(page==='testing'?'/settings':'/');});
+  $('#back-button').addEventListener('click',async()=>{if(await mayLeave()){if(window.KioskNavigation)window.KioskNavigation.back('/');else location.assign('/');}});
+  $('#home-button').addEventListener('click',async event=>{if(event.button!==0||event.ctrlKey||event.metaKey||event.shiftKey||event.altKey)return;event.preventDefault();if(await mayLeave()){if(window.KioskNavigation)window.KioskNavigation.home();else location.assign('/');}});
 
   function field(label,value,onChange,options={}) {
     let input;

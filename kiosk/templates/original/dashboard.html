@@ -13,7 +13,8 @@
       </div>
     </div>
     <div class="header-metrics">
-      <a class="settings-button{% if payload.current_page == 1 %} disabled{% endif %}" {% if payload.current_page == 1 %}aria-disabled="true" tabindex="-1"{% else %}href="{{ back_url }}" data-back{% endif %}>Back</a>
+      <a class="settings-button" href="{{ back_url }}" data-back>Back</a>
+      <a class="settings-button" href="/" data-home>Home</a>
       <a class="settings-button" href="{{ url_for('index') }}" aria-label="Settings">Settings</a>
       <span class="sync-pill" data-sync-status>{{ payload.sync_status }}</span>
       <span class="alert-pill"><b data-alert-count>{{ payload.unresolved_count }}</b> faults</span>

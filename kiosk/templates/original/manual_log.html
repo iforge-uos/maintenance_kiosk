@@ -10,6 +10,7 @@
     </div>
     <nav class="header-actions">
       <a href="{{ back_url }}" data-back>Back</a>
+      <a href="/" data-home>Home</a>
       <a href="{{ url_for('ui.reactive_start', printer_id=printer.id) }}">Reactive Start</a>
       <a href="{{ url_for('ui.printer_detail', printer_id=printer.id) }}">Actions</a>
     </nav>
