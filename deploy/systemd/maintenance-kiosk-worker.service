@@ -1,0 +1,23 @@
+[Unit]
+Description=Print Farm Maintenance Kiosk Sheets and notification worker
+After=network.target maintenance-kiosk.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=@KIOSK_USER@
+WorkingDirectory=/opt/maintenance-kiosk/current
+Environment=KIOSK_DATA_DIR=/var/lib/maintenance-kiosk
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/maintenance-kiosk/current/.venv/bin/python -m kiosk worker
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=20
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

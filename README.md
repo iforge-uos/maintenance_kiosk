@@ -6,6 +6,8 @@ The app includes editable Settings, Back navigation, an integration Testing page
 
 The interface preserves the original **800×480 Raspberry Pi touchscreen** design, stylesheet, logos, and maintenance screens from the repository's `Franklin-vibe-fable` branch at `da4dc271f55b226cb3ac7f905d49b37a6951f2fe`. Keep this appearance and resolution when adding features. The dashboard uses the original 2×2 printer grid, with four printers per page and Mainspace/Digital/Exotic page labels; the default configuration has ten printers, eight weekly checks (including the filament sensor), and a 13-week semester. Settings and Testing use the same compact controls, with scrolling inside their content panes.
 
+**Installing on a Raspberry Pi 3A+?** Follow the [Raspberry Pi setup guide](docs/RASPBERRY_PI_SETUP.md) for the installer, automatic boot, touchscreen browser, updates, and backups. It supports existing Raspberry Pi OS Bookworm or Trixie installations.
+
 ## Run locally
 
 Use Python 3.12 and the existing checkout. Cloud tasks already have an isolated environment; no Git worktree is needed.
@@ -56,6 +58,7 @@ Automated tests mock external services; they must not send real email, Discord m
 
 ## Documentation and remaining deployment work
 
+- [Raspberry Pi 3A+ installation and operation](docs/RASPBERRY_PI_SETUP.md)
 - [Setup, credentials, workers, and backups](docs/setup.md)
 - [Testing and verification boundaries](docs/testing.md)
 - [Agreed implementation plan and outstanding work](docs/implementation-plan.md)

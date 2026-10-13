@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=Maintenance Kiosk
+Comment=Original Raspberry Pi print farm kiosk
+Exec=/opt/maintenance-kiosk/current/scripts/kiosk-session.sh
+Type=Application
+DesktopNames=MaintenanceKiosk

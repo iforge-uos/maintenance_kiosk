@@ -1,5 +1,7 @@
 # Setup and operation
 
+For a Raspberry Pi 3A+ with Raspberry Pi OS already installed, use the [Raspberry Pi installer guide](RASPBERRY_PI_SETUP.md). It configures the three services, OS GPIO support, and fullscreen browser automatically. The manual runtime instructions below remain useful for development and other deployments.
+
 ## Runtime
 
 Use the existing repository checkout and Python 3.12. Install `requirements.lock` in a virtual environment, then use `python -m kiosk`, `python -m kiosk worker`, and `python -m kiosk hardware` as described in the [README](../README.md). No database service is needed. Existing PostgreSQL installations from earlier onboarding are not used; removing unrelated installations or data is not part of app setup.
@@ -73,6 +75,8 @@ Hardware diagnostics take a short-lived lease that pauses the production watcher
 The worker uses the same maintenance service as the UI: qualifying holds create or continue an open incident, while resolving the fault updates availability and LED state. The running GPIO worker reloads mapping/timing changes and refreshes outputs. Switching away from `gpiozero` stops monitoring; start the worker again after switching back to real hardware mode.
 
 ## Service deployment
+
+The [Raspberry Pi installer](RASPBERRY_PI_SETUP.md) creates the services and browser startup described here, with persistent data in `/var/lib/maintenance-kiosk`.
 
 On the Pi, configure a process supervisor such as `systemd` to run the three commands as the same dedicated kiosk user, from the repository directory, with the same `KIOSK_DATA_DIR` and the absolute virtual-environment Python path. Set a restart policy and ensure the durable data directory is writable. Launch the touchscreen browser in kiosk mode against the loopback URL after the web service is available.
 
