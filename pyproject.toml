@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "iforge-maintenance-kiosk"
+version = "0.1.0"
+description = "Offline-capable print farm maintenance kiosk with Google Sheets and notifications"
+requires-python = ">=3.11"
+dynamic = ["dependencies"]
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
+
+[tool.setuptools.packages.find]
+include = ["kiosk*"]
+
+[tool.setuptools.package-data]
+kiosk = ["templates/*.html", "templates/original/*.html", "static/*", "static/css/*", "static/js/*", "static/img/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

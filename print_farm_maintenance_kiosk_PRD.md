@@ -1,16 +1,16 @@
 # Product Requirements Document (PRD)
 ## Print Farm Maintenance Kiosk
-**Version:** 1.0  
-**Date:** 2026-04-21  
-**Status:** Planning / MVP Definition  
-**Primary platform:** Raspberry Pi + 7-inch touchscreen + Python/Flask + SQLite  
+**Version:** 1.1
+**Date:** 2026-10-12
+**Status:** Build requirements; see README and docs/implementation-plan.md for implementation status
+**Primary platform:** Raspberry Pi + 7-inch touchscreen + Python/Flask + Google Sheets with durable local files
 **Deployment model:** Local-first kiosk with GPIO hardware integration and background sync
 
 ---
 
 ## 1. Executive Summary
 
-The Print Farm Maintenance Kiosk is a local-first operations system for an 8-printer FDM print farm. It is designed to make maintenance logging fast, visible, and reliable in a student-run environment. The kiosk will run on a Raspberry Pi with a 7-inch touchscreen, connect to physical buttons and LEDs over GPIO, store all records locally in SQLite, upload logs to Google Drive when connectivity is available, and send email notifications to designated technicians when a printer is marked unavailable by hardware trigger.
+The Print Farm Maintenance Kiosk is a local-first operations system for an 8-printer FDM print farm. It is designed to make maintenance logging fast, visible, and reliable in a student-run environment. The kiosk will run on a Raspberry Pi with a 7-inch touchscreen, connect to physical buttons and LEDs over GPIO, save maintenance changes durably to local files before synchronizing them to a Google Sheets workbook in Google Drive owned by `threedprintingiforge@gmail.com`, and send configurable email and Discord webhook notifications. Staff create and edit records through the kiosk only; Sheets is for shared viewing and reporting. PostgreSQL and SQLite are not part of this architecture.
 
 The system has four main goals:
 
@@ -68,7 +68,7 @@ The system should become the single source of truth for:
 - Record reactive maintenance with enough structure to support later analysis.
 - Support hardware-triggered unavailable events from GPIO buttons.
 - Turn LEDs on/off to mirror printer fault state.
-- Send automatic technician email alerts on GPIO-triggered fault events.
+- Send configurable technician email and Discord alerts on fault, escalation, resolution, and weekly-completion events.
 - Keep operating fully offline and sync later.
 - Surface SOPs and guided diagnosis to reduce troubleshooting variability.
 
@@ -119,9 +119,11 @@ The system should become the single source of truth for:
 - GPIO buttons for printer fault marking
 - GPIO LEDs for printer unavailable indication
 - automatic event generation on button hold
-- automatic email notifications to designated technicians
-- local SQLite storage
-- upload/export to Google Drive
+- configurable email and Discord webhook notifications
+- durable local file journal and offline delivery queue
+- synchronization to Google Sheets in the designated Google Drive account
+- Back navigation on every tab and detail screen
+- editable Settings pages and Settings → Testing
 - kiosk mode autostart on boot
 - no-auth system
 
@@ -135,7 +137,6 @@ The system should become the single source of truth for:
 - advanced analytics dashboards (e.g. Grafana)
 - image upload with maintenance events
 - role-based permissions
-- remote admin editing UI for diagnosis tree
 
 ### 6.3 Future scope
 - direct link to OctoPrint/Prusa telemetry
@@ -144,7 +145,6 @@ The system should become the single source of truth for:
 - spare parts tracking
 - technician workload reporting
 - auto-generated semester reports
-- web-based admin editor for decision tree JSON
 - barcode/QR printer selection
 - photo attachments
 - calendar integration
@@ -156,11 +156,11 @@ The system should become the single source of truth for:
 ### 7.1 Assumptions
 - Print farm has exactly 8 printers in initial rollout.
 - Each printer has one physical fault button and one LED.
-- Button press-and-hold duration is 1 second.
+- Button press-and-hold duration defaults to 1 second and is configurable in Settings.
 - The kiosk will be in a supervised location.
 - Technicians are comfortable selecting their name from a dropdown.
 - SOP files can be stored locally on the Pi and optionally mirrored on Drive.
-- Diagnosis tree and quick-fix presets will be stored in editable JSON files.
+- Diagnosis and operational settings are edited through validated Settings pages and stored outside application source.
 - Weekly maintenance is aligned with teaching weeks 1–12 in each semester.
 
 ### 7.2 Constraints
@@ -175,12 +175,12 @@ The system should become the single source of truth for:
 
 ## 8. Product Principles
 
-1. **Local first:** write to SQLite before attempting any network action.
+1. **Local first:** persist the complete change in a durable local file journal before acknowledging a save or attempting network delivery.
 2. **Fast by design:** dropdowns, checkboxes, large buttons, minimal free text.
-3. **Single source of truth:** printer status and maintenance history come from one shared database.
+3. **One editing authority:** the kiosk owns changes; Google Sheets contains the shared reporting record and local files preserve offline work pending synchronization.
 4. **One event model:** button-triggered faults and manually created reactive events use the same reactive event structure.
 5. **Transparent operations:** home screen must communicate current state immediately.
-6. **Maintainable by editing files:** diagnosis logic and quick-fix presets live outside application code.
+6. **Maintainable through Settings:** ordinary configuration and diagnosis changes use the kiosk Settings pages without source edits.
 
 ---
 
@@ -192,16 +192,16 @@ The system consists of five cooperating subsystems:
    Provides dashboard, logging pages, history pages, diagnosis interface, and SOP access.
 
 2. **Application backend (Flask routes + service layer)**  
-   Handles business rules, event creation, state transitions, history aggregation, Drive export triggers, and data validation.
+   Handles business rules, event creation, state transitions, history aggregation, Sheets synchronization, configuration, and data validation.
 
-3. **SQLite data layer**  
-   Stores printer metadata, maintenance logs, diagnosis outputs, notification queue, sync queue, and configuration references.
+3. **Durable file journal and Google Sheets**
+   Local files preserve records, revisions, accepted changes, queue acknowledgements, and settings across outages/restarts. Sheets exposes current printer/maintenance views and an append-only activity history.
 
 4. **GPIO watcher service**  
    Monitors buttons, measures hold duration, creates fault events, and sets LEDs.
 
-5. **Email + sync workers**  
-   Send queued emails and upload queued exports/files to Google Drive.
+5. **Delivery worker**
+   Delivers independent Sheets, SMTP email, and Discord jobs with retries and visible outcomes.
 
 ---
 
@@ -544,7 +544,7 @@ The system shall:
 - Optional Drive link may also be stored
 
 ## 11E.7 Authoring behavior
-Future updates to diagnosis logic must be possible by editing JSON only, without code changes.
+Future updates to diagnosis logic and SOP references must be possible through Settings without code changes. Validate node references and cycles before activating an edited graph; a JSON editor in Settings can support advanced graph editing.
 
 ---
 
@@ -651,7 +651,7 @@ When a printer’s button is pressed continuously for 1 second:
 - reactive maintenance event is auto-created if no open event exists
 - event source is set to `gpio_button`
 - event summary defaults to `Marked unavailable by hardware button`
-- email notification(s) are queued to designated technician(s)
+- configured email and Discord notifications are queued once for a new fault
 
 ## 11I.4 Resolution behavior
 When the technician resolves the event and marks the printer available:
@@ -665,8 +665,8 @@ A background Python service shall:
 - detect press-and-hold duration
 - debounce input
 - set LED output state
-- write events to SQLite
-- queue email notification jobs
+- persist accepted events to the same durable local journal used by the web app
+- queue configured email and Discord notification jobs
 
 The web app shall not be solely responsible for GPIO detection.
 
@@ -692,47 +692,55 @@ Must include:
 
 ## 11J.4 Delivery method
 - SMTP sender account configured on Raspberry Pi
-- credentials stored in environment/config, not hardcoded
+- credentials set through server-side Settings secret controls, not hardcoded
 - worker process sends queued messages
 
 ## 11J.5 Reliability model
 Email sending shall be queue-based:
-1. create event in DB
-2. create notification queue record(s)
+1. persist the accepted change and stable change ID locally
+2. create independent notification jobs from the accepted change
 3. worker attempts send
 4. success/failure stored with retry count
 
 ## 11J.6 Recipient configuration
-Recipient emails shall be configurable per printer or group via config file.
+Recipient emails and event rules shall be editable in Settings. Discord destinations support event and printer routing. Per-printer email routing remains a separate enhancement unless implemented.
 
 ---
 
-# 11K. Google Drive Upload / Export
+# 11K. Google Sheets in Google Drive
 
-## 11K.1 Purpose
-Provide cloud backup / shared access without making the system dependent on internet.
+## 11K.1 Purpose and ownership
+The shared maintenance workbook belongs to `threedprintingiforge@gmail.com` in Google Drive. Staff edit records through the kiosk only and use Sheets for viewing/reporting. Connect using account OAuth, or share a workbook owned by that account with a service account as Editor. An account email alone does not provide authorization.
 
-## 11K.2 Principle
-Local SQLite is the source of truth. Drive upload is secondary.
+## 11K.2 Workbook tabs
+- `Printers`: latest printer availability and maintenance summaries.
+- `Weekly_Maintenance`: latest revision of each weekly job, including checklist labels, readings, units, actor, and timestamps.
+- `Reactive_Maintenance`: latest revision of each incident, from initial fault through resolution.
+- `Activity_Log`: immutable accepted changes, keyed by change ID, with full saved snapshots and occurrence/synchronization times.
 
-## 11K.3 MVP approach
-- export logs to CSV and/or upload structured files
-- upload in background when internet is available
-- queue failed uploads for retry
+Records use permanent IDs, never spreadsheet row numbers. Weekly jobs are unique per printer/year/semester/week; repeated hardware triggers continue the existing open incident. Record revisions prevent older retries from overwriting newer state. Current-view rows can be rebuilt from the activity history.
 
-## 11K.4 Upload targets
-Possible initial organization:
-- weekly logs export
-- reactive logs export
-- semester summaries
-- local copies of diagnostic config backups
+## 11K.3 Offline and retry behavior
+Acknowledge saves after durable local persistence. Deliver Sheets and notification jobs independently; retain unfinished work through reboot. Before retrying an ambiguous append, search the stable change ID. Serialize writers for the initial kiosk. Google Sheets provides no uniqueness constraint, and network timeouts can still cause duplicates; do not promise exactly-once delivery.
 
-## 11K.5 Sync status
-Dashboard header shall expose simplified sync state:
-- Synced
-- Pending
-- Local only
-- Error
+## 11K.4 Sync status
+Show local save, Sheets synchronization, and notification delivery states separately. Show pending jobs and redacted failures. Preserve queue destination snapshots; do not silently move pending records or alerts to a changed destination.
+
+# 11L. Back Navigation
+- Every tab and detail page has a large, consistently positioned Back button.
+- Back follows in-app history and preserves printer/filter/draft context; direct links fall back to their parent or Home.
+- At Home with no preceding in-app page, Back is disabled.
+- Unsaved navigation offers Save draft, Discard, or Stay, including browser Back.
+
+# 11M. Settings and Testing
+Operational configuration is edited on Settings pages: general display/timezone, printers, technicians, checklist/usage fields, academic schedule, diagnosis/SOP references, Google connection, SMTP, Discord routing, GPIO mappings/timing, and backups. Validate a complete configuration revision before activation and preserve history. Show restart requirements for worker/hardware changes.
+
+Credentials are server-side secrets, masked in the UI and excluded from settings/data exports, logs, and Sheets. Configure and replace them through Settings without source edits. This supervised kiosk has no authentication; bind to loopback and do not expose it as a public service.
+
+Settings → Testing provides explicit, separate checks for configuration, diagnosis/SOPs, Google access, isolated Sheets write/read, test email, test Discord, simulated maintenance trigger, real physical input, LED output, offline persistence, and recovery. Run non-sending checks never dispatches messages. Mark test messages clearly, suppress mentions, and isolate test records from production records. Real GPIO checks require a Raspberry Pi and must report unavailable in mock/cloud mode. Restore LED state after an output test and time-limit physical-input tests. Only the operator's explicit sending/writing test action contacts the selected destination.
+
+# 11N. Discord Notifications
+Named webhook destinations are configurable in Settings with enabled state, event rules, and optional printer routing. Fault, escalation, resolution, and weekly-completion notifications include printer, event/record ID, occurrence time, and maintenance context. Persist delivery outcomes and returned message IDs, honor rate limits, and retry transient errors. Ordinary draft saves and repeated hardware presses do not generate repeated fault alerts. A timeout after Discord accepted a message can still result in duplicate delivery.
 
 ---
 
@@ -772,7 +780,7 @@ The system shall support configurable shortcut presets that prefill reactive eve
 GPIO-triggered faults and manually created reactive events shall use the same reactive event schema.
 
 ### FR-12 GPIO Fault Trigger
-A 1-second hardware button hold shall mark a printer unavailable, create/update a reactive event, illuminate the associated LED, and queue email notification(s).
+A 1-second hardware button hold shall mark a printer unavailable, create/update a reactive event, illuminate the associated LED, and queue configured email/Discord notifications.
 
 ### FR-13 LED State
 The system shall turn off the LED when the related fault is resolved and the printer returns to available state.
@@ -781,16 +789,25 @@ The system shall turn off the LED when the related fault is resolved and the pri
 The system shall queue and send notification emails using background worker processing.
 
 ### FR-15 Local Storage
-The system shall store all records locally in SQLite and continue operating offline.
+The system shall persist records and delivery jobs in durable local files and continue operating offline, without PostgreSQL or SQLite.
 
-### FR-16 Drive Sync
-The system shall export and upload logs to Google Drive asynchronously with retry logic.
+### FR-16 Sheets Sync
+The system shall synchronize stable record IDs and revisions to the Google Sheets workbook in the designated Drive account, asynchronously with retry logic.
 
 ### FR-17 Kiosk Mode
 The system shall auto-launch in kiosk mode on boot.
 
-### FR-18 Configuration Files
-The system shall use editable external files for diagnosis tree, quick-fix presets, printer GPIO mapping, technician list, and notification recipients.
+### FR-18 Editable Settings
+The system shall provide Settings pages for supported operational configuration and a versioned history without editing source code.
+
+### FR-19 Back Navigation
+The system shall provide Back on every tab/detail page, preserving context and guarding unsaved changes.
+
+### FR-20 Discord Queue
+The system shall queue configurable Discord webhook notifications independently of email and Sheets delivery.
+
+### FR-21 Testing
+The system shall provide isolated, labelled diagnostics and explicit integration/hardware test actions in Settings → Testing.
 
 ---
 
@@ -813,17 +830,17 @@ The system shall use editable external files for diagnosis tree, quick-fix prese
 - all events stored locally before any network dependency
 - no loss of event records during internet outage
 - services auto-restart after crash/reboot
-- LED states consistent with printer DB state after reboot/recovery
+- LED states consistent with persisted printer state after reboot/recovery
 
 ### NFR-04 Maintainability
 - diagnosis and quick-fix updates must not require code changes
-- printer-to-GPIO mapping editable in config
-- technician list editable in config
+- printer-to-GPIO mapping editable in Settings
+- technician list editable in Settings
 - services clearly separated and documented
 
 ### NFR-05 Security
 - no credentials in source code
-- SMTP secrets stored in environment/config files not committed to repo
+- SMTP, Google, and Discord secrets stored server-side with restricted permissions; never committed or included in ordinary exports
 - Drive credentials secured locally
 - physical kiosk assumed in supervised area due to lack of auth
 
@@ -836,7 +853,7 @@ The system shall use editable external files for diagnosis tree, quick-fix prese
 - notifications/uploads are queued, not discarded
 
 ### NFR-08 Observability
-- service logs for Flask, GPIO worker, email worker, and sync worker
+- service logs for Flask, GPIO worker, and Sheets/email/Discord delivery worker
 - error states visible enough for debugging
 
 ---
@@ -854,7 +871,8 @@ The system shall use editable external files for diagnosis tree, quick-fix prese
 9. Reactive Summary / Save Page
 10. Full History Page
 11. SOP Viewer
-12. Optional future admin/config pages (not MVP)
+12. Settings pages
+13. Settings → Testing
 
 ---
 
@@ -908,7 +926,7 @@ Main Page
 Button hold (1 second)  
 → GPIO Worker creates/updates reactive event  
 → LED on  
-→ Email queued  
+→ Configured email/Discord jobs queued
 → Main Page shows printer unavailable  
 → Technician later opens Reactive Maintenance to continue event
 
@@ -924,18 +942,18 @@ Button hold (1 second)
 ## 16.2 Backend services
 - Flask web app
 - GPIO watcher process
-- Email worker process
-- Drive sync/export worker process
+- Sheets/email/Discord delivery worker process
 
 ## 16.3 Data store
-- postgresQL database on local disk
+- Durable append-only local change journal with rebuildable projections and delivery state.
+- Google Sheets workbook owned by `threedprintingiforge@gmail.com` for shared records/reporting.
+- No PostgreSQL or SQLite database server/file.
 
-## 16.4 Config files
-- `diagnosis_tree.json`
-- `quick_fixes.json`
-- `printers.json` or equivalent hardware mapping file
-- `technicians.json` or application config
-- `.env` for SMTP / credentials
+## 16.4 Configuration
+- Repository `diagnosis_tree.json` supplies the initial graph.
+- Settings and diagnosis overrides are stored in the runtime data directory, outside application source.
+- Secrets have restricted file permissions and are excluded from normal exports.
+- UI settings history stores prior non-secret revisions.
 
 ## 16.5 SOP storage
 - Local SOP directory on Pi
@@ -960,7 +978,7 @@ Fields:
 - updated_at
 
 ### 17.2 Maintenance Events
-Common metadata table for all maintenance records:
+Common saved metadata for all maintenance records:
 - event_id
 - printer_id
 - event_type (`weekly`, `reactive`)
@@ -1005,32 +1023,25 @@ Common metadata table for all maintenance records:
 - resolved_at
 
 ### 17.5 Notification Queue
-- notification_id
-- event_id
-- printer_id
-- recipient_email
-- subject
-- body
+- job_id and change_id
+- kind (`email`, `discord`)
+- destination snapshot (stable destination ID, recipients/routing; no secret values)
+- event payload containing record and occurrence time
 - status (`pending`, `sent`, `failed`)
-- retry_count
-- created_at
-- last_attempt_at
-- sent_at
-- error_message
+- attempts, next_attempt_at, created_at, last_attempt_at, sent_at
+- sanitized error and retryability
+- returned delivery result/message ID where available
 
-### 17.6 Sync Queue
-- sync_id
-- export_type
-- payload_ref / file_path
-- status
-- retry_count
-- created_at
-- last_attempt_at
-- completed_at
-- error_message
+### 17.6 Sheets Sync Queue
+- job_id, change_id, record_id, revision
+- workbook/account destination snapshot without credentials
+- saved change payload
+- status, attempts, next_attempt_at
+- created_at, last_attempt_at, sent_at
+- sanitized error and retryability
 
 ### 17.7 Hardware Mapping
-May be stored in DB or config file:
+Stored in versioned Settings:
 - printer_id
 - button_gpio
 - led_gpio
@@ -1038,22 +1049,13 @@ May be stored in DB or config file:
 
 ---
 
-## 18. Configuration and Editable Files
+## 18. Configuration and Editable Settings
 
-### 18.1 `diagnosis_tree.json`
-Holds diagnosis categories, nodes, and SOP links.
+Settings is the normal editing interface for supported farm, maintenance, notification, Google, and hardware configuration. Active settings and prior revisions are stored locally. The runtime data directory can be selected with `KIOSK_DATA_DIR`.
 
-### 18.2 `quick_fixes.json`
-Holds one-tap shortcut presets.
+The repository `diagnosis_tree.json` is the initial graph; a validated Settings override supplies updates without editing it. Export/import non-secret settings from the UI. Credentials stay server-side and are not included in exports. Automatic Drive backup/settings mirroring remains an implementation milestone, not an assumed consequence of Sheets sync.
 
-### 18.3 `printers.json`
-Maps printer identity to GPIO pins and notification recipients.
-
-### 18.4 `technicians.json` or settings table
-Defines dropdown list for technician names.
-
-### 18.5 `.env`
-Holds SMTP host, port, sender credentials, Drive credentials/path settings if applicable.
+Do not remove records when a printer/technician is archived. Historical checklist labels and metric units are retained with records. Block destination changes while they would silently redirect outstanding jobs.
 
 ---
 
@@ -1101,7 +1103,7 @@ Holds SMTP host, port, sender credentials, Drive credentials/path settings if ap
 - create/update reactive event
 - set LED state
 - queue notifications
-- recover LED state from DB on startup
+- recover LED state from persisted local records on startup
 
 ### 20.3 Email worker responsibilities
 - poll pending notifications
@@ -1109,11 +1111,12 @@ Holds SMTP host, port, sender credentials, Drive credentials/path settings if ap
 - update queue state
 - retry failed sends
 
-### 20.4 Sync worker responsibilities
-- generate CSV exports
-- upload to Drive
-- update sync queue
-- surface sync health
+### 20.4 Delivery worker responsibilities
+- synchronize accepted changes and current views to Sheets
+- deliver configured SMTP and Discord jobs independently
+- persist acknowledgement/retry state and redact errors
+- surface queue/sync health
+- serialize Sheets writes and respect service rate limits
 
 ---
 
@@ -1151,15 +1154,14 @@ Future expansion may use an I/O expander if desired.
 ### 22.2 Services
 - Flask app service
 - GPIO worker service
-- email worker service
-- sync worker service
+- Sheets/email/Discord delivery worker service
 
 ### 22.3 Boot behavior
 On startup:
 1. boot OS
 2. start background services
 3. launch kiosk browser
-4. recover printer/LED states from DB
+4. recover printer/LED states from local records
 5. show main page
 
 ---
@@ -1182,19 +1184,19 @@ All email sending must be queue-driven to avoid losing notifications during netw
 
 ---
 
-## 24. Google Drive Sync Requirements
+## 24. Google Drive and Sheets Requirements
 
-### 24.1 Sync principle
-Drive is backup/share, not source of truth.
+### 24.1 Ownership and editing authority
+The Google Sheets workbook is stored in the Google Drive account `threedprintingiforge@gmail.com`. The kiosk is the sole record editor. Staff use viewer access and filter views for reporting. Verify account ownership and sharing during real setup.
 
-### 24.2 Sync objects
-- periodic CSV export of weekly maintenance
-- periodic CSV export of reactive maintenance
-- optional config snapshots
-- optional semester archive bundles
+### 24.2 Synchronized objects
+Synchronize printer summaries, weekly jobs, reactive incidents, and immutable activity changes. Store numeric/checklist data with retained labels and units. Use raw cell values so user text is never interpreted as a formula.
 
-### 24.3 Retry behavior
-Uploads that fail shall remain queued until successful or manually cleared.
+### 24.3 Retry and recovery
+Save locally before network delivery. Retry transient failures with persisted backoff; surface permanent failures for correction. Use stable IDs, change IDs, and revisions to reconcile interrupted synchronization. Retain pending destination identity during configuration changes.
+
+### 24.4 Backups
+Downloadable settings and record exports are required. Scheduled Drive exports and retention are planned separately from record synchronization. Google Sheets access alone does not mean backups have been created or configured.
 
 ---
 
@@ -1214,7 +1216,7 @@ Uploads that fail shall remain queued until successful or manually cleared.
 **Mitigation:** dropdown technician names, supervised placement, simple workflows, history visibility.
 
 ### Risk 2: network outage blocks email or sync
-**Mitigation:** queue-first model, local-first DB writes, retry workers.
+**Mitigation:** queue-first model, durable local file writes, retry workers.
 
 ### Risk 3: GPIO noise / accidental presses
 **Mitigation:** debounce + 1-second hold requirement.
@@ -1226,7 +1228,7 @@ Uploads that fail shall remain queued until successful or manually cleared.
 **Mitigation:** external JSON format, documentation, validation script.
 
 ### Risk 6: inconsistent LED state after reboot
-**Mitigation:** worker restores LED outputs from DB on service startup.
+**Mitigation:** worker restores LED outputs from persisted printer state on service startup.
 
 ### Risk 7: overly complex UI on 7-inch screen
 **Mitigation:** staged flows, large buttons, limit options per view, avoid dense tables.
@@ -1247,15 +1249,22 @@ The MVP is accepted when the following are true:
 8. An email notification is queued and sent for hardware-triggered faults.
 9. Resolving a reactive event turns off the LED and returns the printer to available state when selected.
 10. If internet is unavailable, event creation still works and email/upload jobs remain queued.
-11. Logs can be exported/uploaded to Google Drive when connectivity returns.
-12. All services restart automatically after reboot.
+11. Local accepted changes synchronize to the designated Google Sheets workbook when connectivity returns.
+12. All deployed services restart automatically after reboot.
+13. Every tab/detail page has consistent Back behavior and unsaved-change protection.
+14. Supported settings and secret connections can be changed without source edits.
+15. Discord webhook routing and queued retry work independently of email/Sheets.
+16. Testing distinguishes mock and real hardware, isolates records, labels messages, and never sends from the non-sending check group.
+
+These are release acceptance requirements. Tests with mocked services do not establish real account ownership, email receipt, Discord delivery, physical GPIO operation, or reboot behavior on a Raspberry Pi.
 
 ---
 
 ## 28. Milestones / Recommended Build Order
 
-### Phase 1 — Core kiosk UI + DB
-- DB schema
+### Phase 1 — Core kiosk UI + local records
+- durable journal and record schema
+- navigation shell, Back behavior, and Settings
 - main page
 - weekly maintenance
 - weekly history
@@ -1280,15 +1289,16 @@ The MVP is accepted when the following are true:
 
 ### Phase 5 — Notifications and sync
 - notification queue
-- SMTP worker
-- Drive sync/export worker
+- SMTP and Discord adapters
+- Sheets synchronization worker
 
 ### Phase 6 — Hardening
 - systemd services
 - reboot recovery
 - logging
-- config validation
+- config validation and Settings → Testing
 - deployment documentation
+- real account and Raspberry Pi verification
 
 ---
 
@@ -1296,9 +1306,9 @@ The MVP is accepted when the following are true:
 
 1. Should `Under Maintenance` LED behavior differ from `Unavailable` in MVP?
 2. Should general users be allowed to navigate beyond the main page?
-3. Should weekly metrics be cumulative absolute readings or deltas since last week?
-4. What exact file format should Drive export use first: CSV only, or CSV + JSON snapshot?
-5. Should there be a simple hidden admin route for editing technician list and printer mappings later?
+3. Weekly metrics are cumulative readings; explicit reset handling/report deltas remain to implement.
+4. What backup schedule and retention should be used for future automatic Drive exports?
+5. Settings pages for technician lists and printer mappings are required now; should later deployment add access control?
 6. Should unresolved events auto-remind technicians after a time threshold in later phases?
 7. Should the system support separate LEDs for warning vs unavailable later?
 
@@ -1356,26 +1366,20 @@ Suggested MVP quick fixes:
 ## 33. Appendix D — Recommended Repository Structure
 
 ```text
-printfarm-kiosk/
-├── app.py
-├── gpio_service.py
-├── email_worker.py
-├── sync_worker.py
-├── requirements.txt
-├── .env
-├── config/
-│   ├── diagnosis_tree.json
-│   ├── quick_fixes.json
-│   ├── printers.json
-│   └── technicians.json
-├── data/
-│   └── kiosk.db
-├── sops/
-│   ├── clear_nozzle_clog.pdf
-│   ├── reload_filament.pdf
-│   └── ...
-├── templates/
-├── static/
+maintenance_kiosk/
+├── kiosk/
+│   ├── __main__.py          # web / worker / hardware commands
+│   ├── domain.py            # validated maintenance/settings operations
+│   ├── storage.py           # durable local persistence
+│   ├── integrations.py      # Sheets, SMTP, Discord
+│   ├── diagnostics.py
+│   ├── hardware.py
+│   ├── templates/
+│   └── static/
+├── diagnosis_tree.json     # initial graph
+├── requirements.lock
+├── instance/               # ignored runtime files and secrets
+├── tests/
 └── docs/
 ```
 
@@ -1383,7 +1387,7 @@ printfarm-kiosk/
 
 ## 34. Final Statement
 
-This PRD defines a local-first, touch-friendly, student-maintainable maintenance management system for an 8-printer farm. It intentionally avoids unnecessary complexity such as authentication and cloud dependency while providing strong operational structure, traceable maintenance history, hardware fault integration, and extensible diagnosis logic.
+This PRD defines a local-first, touch-friendly, student-maintainable maintenance management system for an 8-printer farm. The supervised kiosk operates through outages using durable local files, synchronizes its shared records to Google Sheets, and provides strong operational structure, traceable maintenance history, hardware fault integration, and extensible diagnosis logic.
 
 The product is designed so that:
 - technicians can move quickly

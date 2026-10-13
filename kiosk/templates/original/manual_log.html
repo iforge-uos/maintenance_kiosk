@@ -1,0 +1,102 @@
+{% extends "original/base.html" %}
+{% set title = "Manual Reactive Log" %}
+
+{% block content %}
+<section class="screen form-screen">
+  <header class="kiosk-header compact">
+    <div>
+      <h1>{{ printer.name }} Manual Log</h1>
+      <span class="muted">Fast path for known faults</span>
+    </div>
+    <nav class="header-actions">
+      <a href="{{ back_url }}" data-back>Back</a>
+      <a href="{{ url_for('ui.reactive_start', printer_id=printer.id) }}">Reactive Start</a>
+      <a href="{{ url_for('ui.printer_detail', printer_id=printer.id) }}">Actions</a>
+    </nav>
+  </header>
+  {% if error %}<p class="prefill-banner" role="alert">{{ error }}</p>{% endif %}
+
+  <form class="kiosk-form manual-layout" method="post">
+    <input type="hidden" name="csrf_token" value="{{ session.csrf }}">
+    <input type="hidden" name="record_id" value="{{ form.get('record_id', '') }}">
+    <input type="hidden" name="revision" value="{{ form.get('revision', '') }}">
+    <section class="form-panel">
+      <h2>Fault</h2>
+      <label>
+        <span>Origin</span>
+        <select name="event_origin" required>
+          {% for origin in event_origins %}
+            <option {% if form.get("event_origin") == origin %}selected{% endif %}>{{ origin }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        <span>Symptom</span>
+        <select name="symptom_category" required>
+          {% for category in symptom_categories %}
+            <option {% if form.get("symptom_category") == category %}selected{% endif %}>{{ category }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        <span>Issue summary</span>
+        <textarea name="issue_summary" rows="3" required>{{ form.get("issue_summary", printer.current_fault_summary) }}</textarea>
+      </label>
+      <label>
+        <span>Component</span>
+        <input name="component_involved" value="{{ form.get('component_involved', '') }}" placeholder="Nozzle, bed, fan...">
+      </label>
+    </section>
+
+    <section class="form-panel">
+      <h2>Actions</h2>
+      <div class="check-grid compact">
+        {% for action in action_options %}
+          <label class="touch-check">
+            <input type="checkbox" name="action_taken" value="{{ action }}" {% if action in (form.getlist("action_taken") if form.getlist is defined else form.get("action_taken", "").split(", ")) %}checked{% endif %}>
+            <span>{{ action }}</span>
+          </label>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="form-panel">
+      <h2>Result</h2>
+      <label>
+        <span>Status</span>
+        <select name="result_status" required>
+          {% for status in result_statuses %}
+            <option {% if form.get("result_status") == status %}selected{% endif %}>{{ status }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        <span>Technician</span>
+        <select name="technician_name" required data-technician-select>
+          <option value="">Select</option>
+          {% for technician in technicians %}
+            <option {% if form.get("technician_name") == technician %}selected{% endif %}>{{ technician }}</option>
+          {% endfor %}
+          <option value="Other" {% if form.get("technician_name") == "Other" %}selected{% endif %}>Other</option>
+        </select>
+      </label>
+      <label class="other-technician" hidden>
+        <span>Other technician</span>
+        <input name="other_technician" type="text" autocomplete="off" value="{{ form.get('other_technician', '') }}">
+      </label>
+      <label>
+        <span>Dashboard fix summary</span>
+        <input name="fix_summary" required value="{{ form.get('fix_summary', '') }}">
+      </label>
+      <label>
+        <span>Note</span>
+        <textarea name="note" rows="2">{{ form.get("note", "") }}</textarea>
+      </label>
+      <div class="save-row">
+        <button class="primary-button" type="submit">Save Log</button>
+        <a class="danger-button" href="{{ url_for('ui.printer_detail', printer_id=printer.id) }}">Cancel</a>
+      </div>
+    </section>
+  </form>
+</section>
+{% endblock %}

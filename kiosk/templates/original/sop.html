@@ -1,0 +1,22 @@
+{% extends "original/base.html" %}
+{% set title = "SOP" %}
+
+{% block content %}
+<section class="screen sop-screen">
+  <header class="kiosk-header compact">
+    <div>
+      <h1>SOP Viewer</h1>
+      <span class="muted">{{ slug }}</span>
+    </div>
+    <nav class="header-actions">
+      <a href="{{ back_url }}" data-back>Back</a>
+      <a href="{{ dashboard_url }}">Dashboard</a>
+    </nav>
+  </header>
+  {% if error %}<p class="prefill-banner" role="alert">{{ error }}</p>{% endif %}
+
+  <article class="sop-document">
+    {{ content }}
+  </article>
+</section>
+{% endblock %}

@@ -1,0 +1,3 @@
+/* Small functional additions; the original kiosk stylesheet stays unchanged. */
+[hidden] { display: none !important; }
+.header-metrics [aria-disabled="true"] { opacity: .35; pointer-events: none; }

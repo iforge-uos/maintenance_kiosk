@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="{{ csrf_token }}">
+  <meta name="theme-color" content="#f8f6ef">
+  <title>{{ page|title }} · Print Farm Maintenance Kiosk</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/kiosk.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script defer src="{{ url_for('static', filename='app.js') }}"></script>
+</head>
+<body class="admin-kiosk" data-page="{{ page }}">
+  <a class="skip-link" href="#main">Skip to content</a>
+  <div class="app-shell">
+    <section class="screen settings-screen">
+      <header class="kiosk-header compact">
+        <div>
+          <h1 id="page-label">{{ page|title }}</h1>
+          <span class="muted" id="farm-name">Print Farm Maintenance</span>
+        </div>
+        <nav class="header-actions" aria-label="Settings navigation">
+          <button id="back-button" class="button" type="button">← Back</button>
+          <a href="/settings" data-route>Settings</a>
+          <a href="/testing" data-route>Testing</a>
+        </nav>
+      </header>
+      <main id="main" tabindex="-1"><div class="loading"><span class="spinner"></span>Loading settings…</div></main>
+    </section>
+  </div>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  <dialog id="leave-dialog" class="dialog">
+    <form method="dialog">
+      <h2>Unsaved changes</h2>
+      <p>Save a draft on this device, discard your changes, or stay on this page.</p>
+      <div class="dialog-actions">
+        <button class="button" value="stay">Stay</button>
+        <button class="button danger-text" value="discard">Discard changes</button>
+        <button class="button primary" value="draft">Save draft</button>
+      </div>
+    </form>
+  </dialog>
+  <noscript>Enable JavaScript to configure settings and run integration tests.</noscript>
+</body>
+</html>

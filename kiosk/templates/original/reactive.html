@@ -1,0 +1,95 @@
+{% extends "original/base.html" %}
+{% set title = "Reactive Summary" %}
+{% set prefill = quick_fix or diagnosis_prefill %}
+
+{% block content %}
+<section class="screen form-screen">
+  <header class="kiosk-header compact">
+    <div>
+      <h1>{{ printer.name }} Reactive</h1>
+      <span class="muted">Continue existing event when open</span>
+    </div>
+    <nav class="header-actions">
+      <a href="{{ back_url }}" data-back>Back</a>
+      {% if quick_fix and quick_fix.sop_slug %}
+        <a href="{{ url_for('ui.sop', slug=quick_fix.sop_slug, printer=printer.id) }}">Open SOP</a>
+      {% endif %}
+      {% if diagnosis_prefill and diagnosis_prefill.sop_ids %}
+        <a href="{{ url_for('ui.sop', slug=diagnosis_prefill.sop_ids[0], printer=printer.id) }}">Open SOP</a>
+      {% endif %}
+      <a href="{{ url_for('ui.reactive_start', printer_id=printer.id) }}">Reactive Start</a>
+      <a href="{{ url_for('ui.printer_detail', printer_id=printer.id) }}">Actions</a>
+    </nav>
+  </header>
+  {% if error %}<p class="prefill-banner" role="alert">{{ error }}</p>{% endif %}
+
+  <form class="kiosk-form reactive-layout" method="post">
+    <input type="hidden" name="csrf_token" value="{{ session.csrf }}">
+    <input type="hidden" name="record_id" value="{{ form.get('record_id', '') }}">
+    <input type="hidden" name="revision" value="{{ form.get('revision', '') }}">
+    <section class="form-panel status-panel">
+      <h2>Current Fault</h2>
+      {% if quick_fix %}
+        <p class="prefill-banner">{{ quick_fix.label }}</p>
+      {% elif diagnosis_prefill %}
+        <p class="prefill-banner">Diagnosis accepted: {{ diagnosis_prefill.diagnosis_label }}</p>
+      {% endif %}
+      <label>
+        <span>Fault summary</span>
+        <textarea name="current_fault" rows="3" required>{{ form.get("current_fault", printer.current_fault_summary) }}</textarea>
+      </label>
+      <label>
+        <span>Symptom</span>
+        <select name="symptom_category" required>
+          {% for category in symptom_categories %}
+            <option {% if form.get("symptom_category") == category %}selected{% endif %}>{{ category }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        <span>Component</span>
+        <input name="component_involved" value="{{ form.get('component_involved', '') }}" placeholder="Nozzle, bed, fan...">
+      </label>
+    </section>
+
+    <section class="form-panel status-panel">
+      <h2>Save Outcome</h2>
+      <label>
+        <span>Action taken</span>
+        <textarea name="action_taken" rows="3" required>{{ form.get('action_taken', '') }}</textarea>
+      </label>
+      <label>
+        <span>Result</span>
+        <select name="result_status" required>
+          {% for status in result_statuses %}
+            <option {% if form.get("result_status") == status %}selected{% endif %}>{{ status }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        <span>Technician</span>
+        <select name="technician_name" required data-technician-select>
+          <option value="">Select</option>
+          {% for technician in technicians %}
+            <option {% if form.get("technician_name") == technician %}selected{% endif %}>{{ technician }}</option>
+          {% endfor %}
+          <option value="Other" {% if form.get("technician_name") == "Other" %}selected{% endif %}>Other</option>
+        </select>
+      </label>
+      <label class="other-technician" hidden>
+        <span>Other technician</span>
+        <input name="other_technician" type="text" autocomplete="off" value="{{ form.get('other_technician', '') }}">
+      </label>
+      <label>
+        <span>Dashboard fix summary</span>
+        <input name="fix_summary" required value="{{ form.get('fix_summary', '') }}">
+      </label>
+      <div class="save-row three">
+        <button class="primary-button" type="submit" name="save_action" value="available">Available</button>
+        <button class="danger-button" type="submit" name="save_action" value="unavailable">Unavailable</button>
+        <button class="secondary-button" type="submit" name="save_action" value="progress">In Progress</button>
+      </div>
+    </section>
+  </form>
+</section>
+{% endblock %}

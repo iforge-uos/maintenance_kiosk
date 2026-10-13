@@ -1,0 +1,61 @@
+{% extends "original/base.html" %}
+{% set title = "Dashboard" %}
+{% set page_labels = {1: "Mainspace", 2: "Digital", 3: "Exotic"} %}
+
+{% block content %}
+<section class="screen dashboard-screen" data-dashboard data-refresh-seconds="{{ payload.refresh_seconds }}">
+  <header class="kiosk-header">
+    <div class="brand-lockup">
+      <img src="{{ url_for('static', filename='img/3d-print-team-logo.jpg') }}" alt="3D print team">
+      <div>
+        <h1>{{ payload.farm_name }}</h1>
+        <span class="muted">{{ payload.total_printers }} active printers</span>
+      </div>
+    </div>
+    <div class="header-metrics">
+      <a class="settings-button{% if payload.current_page == 1 %} disabled{% endif %}" {% if payload.current_page == 1 %}aria-disabled="true" tabindex="-1"{% else %}href="{{ back_url }}" data-back{% endif %}>Back</a>
+      <a class="settings-button" href="{{ url_for('index') }}" aria-label="Settings">Settings</a>
+      <span class="sync-pill" data-sync-status>{{ payload.sync_status }}</span>
+      <span class="alert-pill"><b data-alert-count>{{ payload.unresolved_count }}</b> faults</span>
+      <span class="page-pill">{{ page_labels.get(payload.current_page, "Page " ~ payload.current_page) }}</span>
+      <time data-clock>{{ payload.generated_at }}</time>
+    </div>
+  </header>
+  {% if error %}<p class="prefill-banner" role="alert">{{ error }}</p>{% endif %}
+
+  <div class="printer-grid" data-printer-grid>
+    {% for printer in payload.printers %}
+      <article class="printer-card status-{{ printer.status|lower|replace(' ', '-') }}" data-printer-card="{{ printer.id }}">
+        <a class="printer-card-button" href="{{ url_for('ui.printer_detail', printer_id=printer.id) }}">
+          <span class="printer-name">{{ printer.name }}</span>
+          <span class="fault-text" data-fault-text>{{ printer.active_problem }}</span>
+          <span class="card-facts">
+            <span><b>Weekly</b><em data-last-weekly>{{ printer.last_weekly_at or "Never" }}</em></span>
+            <span><b>Reactive</b><em data-last-reactive>{{ printer.last_reactive_at or "Never" }}</em></span>
+            <span><b>Fault</b><em data-recent-fault>{{ printer.recent_fault }}</em></span>
+          </span>
+          <span class="status-row">
+            <span class="status-badge" data-status>{{ printer.availability }}</span>
+            <span class="state-badge" data-action-needed>{{ printer.action_needed }}</span>
+          </span>
+          <span class="nozzle-life" style="--nozzle-life-percent: {{ printer.nozzle_life_percent }}%;">
+            <span>
+              <b>Nozzle life</b>
+              <em data-nozzle-life-label>{{ printer.nozzle_life_label }}</em>
+            </span>
+            <i aria-hidden="true"><span data-nozzle-life-bar></span></i>
+          </span>
+        </a>
+      </article>
+    {% endfor %}
+  </div>
+
+  <nav class="dashboard-pager" aria-label="Dashboard pages">
+    <a class="{% if payload.current_page == 1 %}disabled{% endif %}" href="{{ url_for('ui.dashboard', page=payload.current_page - 1) }}">Previous</a>
+    {% for page_number in range(1, payload.total_pages + 1) %}
+      <a class="{% if payload.current_page == page_number %}active{% endif %}" href="{{ url_for('ui.dashboard', page=page_number) }}">{{ page_labels.get(page_number, "Page " ~ page_number) }}</a>
+    {% endfor %}
+    <a class="{% if payload.current_page == payload.total_pages %}disabled{% endif %}" href="{{ url_for('ui.dashboard', page=payload.current_page + 1) }}">Next</a>
+  </nav>
+</section>
+{% endblock %}

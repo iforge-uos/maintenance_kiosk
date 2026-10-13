@@ -1,0 +1,75 @@
+{% extends "original/base.html" %}
+{% set title = "Reactive Start" %}
+
+{% block content %}
+<section class="screen form-screen">
+  <header class="kiosk-header compact">
+    <div>
+      <h1>{{ printer.name }} Reactive Start</h1>
+      <span class="muted">{{ printer.status }} - {{ printer.reactive_state }}</span>
+    </div>
+    <nav class="header-actions">
+      <a href="{{ back_url }}" data-back>Back</a>
+      <a href="{{ url_for('ui.printer_detail', printer_id=printer.id) }}">Actions</a>
+      <a href="{{ dashboard_url }}">Dashboard</a>
+    </nav>
+  </header>
+  {% if error %}<p class="prefill-banner" role="alert">{{ error }}</p>{% endif %}
+
+  <form class="kiosk-form start-layout" method="post">
+    <input type="hidden" name="csrf_token" value="{{ session.csrf }}">
+    <input type="hidden" name="record_id" value="{{ form.get('record_id', '') }}">
+    <input type="hidden" name="revision" value="{{ form.get('revision', '') }}">
+    <section class="form-panel">
+      <h2>Event</h2>
+      {% if printer.has_open_fault %}
+        <p class="prefill-banner">Open event will be continued instead of creating a duplicate.</p>
+      {% endif %}
+      <label>
+        <span>Origin</span>
+        <select name="event_origin" required>
+          {% for origin in event_origins %}
+            <option {% if form.get("event_origin") == origin %}selected{% endif %}>{{ origin }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        <span>Symptom</span>
+        <select name="symptom_category" required>
+          {% for category_id, category in categories %}
+            <option value="{{ category_id }}" {% if form.get("symptom_category") in [category_id, category.label] %}selected{% endif %}>{{ category.label }}</option>
+          {% endfor %}
+          {% if preserved_symptom %}
+            <option value="{{ preserved_symptom }}" selected>{{ preserved_symptom }}</option>
+          {% endif %}
+        </select>
+      </label>
+      <label>
+        <span>Current state</span>
+        <select name="urgency_state" required>
+          {% for state in urgency_states %}
+            <option {% if form.get("urgency_state") == state %}selected{% endif %}>{{ state }}</option>
+          {% endfor %}
+        </select>
+      </label>
+    </section>
+
+    <section class="form-panel">
+      <h2>Issue</h2>
+      <label>
+        <span>Short summary</span>
+        <input name="issue_summary" required value="{{ form.get('issue_summary', printer.current_fault_summary) }}">
+      </label>
+      <label>
+        <span>Optional note</span>
+        <textarea name="note" rows="4" placeholder="Extra context">{{ form.get("note", "") }}</textarea>
+      </label>
+      <div class="save-row three">
+        <button class="primary-button" type="submit" name="next_action" value="diagnosis">Start Diagnosis</button>
+        <button class="secondary-button" type="submit" name="next_action" value="manual">Manual Log</button>
+        <button class="danger-button" type="submit" name="next_action" value="cancel" formnovalidate>Cancel</button>
+      </div>
+    </section>
+  </form>
+</section>
+{% endblock %}

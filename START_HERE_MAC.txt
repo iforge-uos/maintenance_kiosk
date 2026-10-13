@@ -1,0 +1,34 @@
+MAINTENANCE KIOSK — MAC TESTING
+
+This version preserves the original Raspberry Pi kiosk screens and styling.
+The intended screen is 800 x 480 pixels. A larger Mac browser window can
+also be used; resize its content area to 800 x 480 to check the Pi layout.
+
+1. Install Python 3.12 if it is not already installed.
+2. Extract this ZIP and open Terminal in the maintenance_kiosk folder.
+3. Run:
+
+   python3.12 -m venv .venv
+   .venv/bin/python -m pip install --require-hashes -r requirements.lock
+   .venv/bin/python -m kiosk
+
+4. Open http://127.0.0.1:5000 in your browser.
+5. Stop the app with Control-C in Terminal when finished.
+
+Settings provides Google Sheets, email, Discord, and physical-control
+configuration. Settings > Testing provides integration and trigger checks.
+New installations start with integrations disabled and no maintenance records.
+Mac tests use simulated controls; actual GPIO buttons and LEDs need the Pi.
+
+Records are saved locally in instance/ for offline operation. Keep that folder
+when updating an installation. Do not copy it into a shared source ZIP.
+
+To synchronize records or deliver enabled notifications, open a second
+Terminal in this same folder and run:
+
+   .venv/bin/python -m kiosk worker
+
+See README.md and docs/setup.md for the required Google account, workbook,
+email, and Discord credentials. The intended Drive account is
+threedprintingiforge@gmail.com. This ZIP does not contain credentials,
+runtime records, a PostgreSQL database, or a Python virtual environment.
