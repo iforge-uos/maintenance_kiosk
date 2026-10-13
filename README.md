@@ -10,6 +10,8 @@ The interface preserves the original **800×480 Raspberry Pi touchscreen** desig
 
 **Installing on a Raspberry Pi 3A+?** Follow the [Raspberry Pi setup guide](docs/RASPBERRY_PI_SETUP.md) for the installer, automatic boot, touchscreen browser, updates, and backups. It supports existing Raspberry Pi OS Bookworm or Trixie installations.
 
+**Update from GitHub when the Pi starts:** Enable [automatic updates at boot](docs/RASPBERRY_PI_SETUP.md#automatic-updates-at-boot) once on the Pi. Select the GitHub branch to follow. If the network or update check fails, the Pi starts the installed version. Local records and settings stay in `/var/lib/maintenance-kiosk`.
+
 ## Run locally
 
 Use Python 3.12 and the existing checkout. Cloud tasks already have an isolated environment; no Git worktree is needed.

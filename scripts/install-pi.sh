@@ -87,12 +87,12 @@ else
     check_fail 'This machine does not identify itself as a Raspberry Pi in its device tree.'
 fi
 if command -v python3 >/dev/null 2>&1; then
-    python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)' ||
+    python3 -I -c 'import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)' ||
         check_fail 'Python 3.11 or newer is required; use Bookworm or Trixie.'
 else
     check_fail 'Python 3 is missing. Install the OS python3 package first.'
 fi
-for command_name in git apt-get apt-cache systemctl tar df getent stat; do
+for command_name in git apt-get apt-cache systemctl tar df getent stat flock; do
     command -v "$command_name" >/dev/null 2>&1 || check_fail "Missing system command: $command_name"
 done
 [[ -d /run/systemd/system ]] || check_fail 'Run this on the booted Pi OS, which must use systemd.'
@@ -169,6 +169,12 @@ if ((EUID != 0)); then
     exec sudo -- bash "$source_dir/scripts/install-pi.sh" --user "$kiosk_user"
 fi
 
+# Do not deploy while the boot updater or another installer owns this lock.
+lock_path=/run/lock/maintenance-kiosk-deploy.lock
+[[ ! -L "$lock_path" && ( ! -e "$lock_path" || ( -f "$lock_path" && "$(stat -c %u "$lock_path")" == 0 ) ) ]] || die 'The deployment lock must be a regular file owned by root.'
+exec 9>>"$lock_path"
+flock -n 9 || die 'Another kiosk installation or update is in progress. Try again when it finishes.'
+
 umask 022
 lightdm_masked_by_installer=false
 temporary_release=''
@@ -229,13 +235,35 @@ else
     temporary_release=''
 fi
 note 'Installing the pinned Python runtime (OS packages supply compiled dependencies).'
-python3 -m venv --system-site-packages "$release_dir/.venv"
-PIP_CONFIG_FILE=/dev/null PIP_NO_INPUT=1 PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    "$release_dir/.venv/bin/python" -m pip install --no-cache-dir --no-deps \
-    --require-hashes --only-binary=:all: -r "$release_dir/requirements-pi.lock"
+if [[ -L "$release_dir/.venv" ]]; then
+    # Boot updates share a validated runtime when dependency files are unchanged.
+    # Do not modify that runtime: an older retained release also depends on it.
+    runtime_dir="$(readlink -f "$release_dir/.venv")"
+    [[ "$runtime_dir" =~ ^/opt/maintenance-kiosk/releases/[0-9a-f]{40}/\.venv$ && -d "$runtime_dir" ]] ||
+        die 'The shared Python runtime is outside a managed release.'
+    runtime_release="${runtime_dir%/.venv}"
+    for runtime_path in "$runtime_release" "$runtime_dir" "$runtime_dir/bin"; do
+        [[ -d "$runtime_path" && ! -L "$runtime_path" && "$(stat -c %u "$runtime_path")" == 0 ]] ||
+            die "The shared Python runtime must be owned by root: $runtime_path"
+        permissions="$(stat -c %a "$runtime_path")"
+        (( (8#$permissions & 0022) == 0 )) || die "The shared Python runtime is writable by another account: $runtime_path"
+    done
+    [[ -f "$runtime_release/.source-commit" && "$(cat "$runtime_release/.source-commit")" == "${runtime_release##*/}" ]] ||
+        die 'The shared Python runtime has no matching installer marker.'
+    for dependency_file in requirements.txt requirements-pi.lock; do
+        cmp -s "$release_dir/$dependency_file" "$runtime_release/$dependency_file" ||
+            die "The shared Python runtime has different dependencies: $dependency_file"
+    done
+    note 'Reusing the validated shared Python runtime; its packages will not be changed.'
+else
+    python3 -I -m venv --system-site-packages "$release_dir/.venv"
+    PIP_CONFIG_FILE=/dev/null PIP_NO_INPUT=1 PIP_DISABLE_PIP_VERSION_CHECK=1 \
+        "$release_dir/.venv/bin/python" -I -m pip install --no-cache-dir --no-deps \
+        --require-hashes --only-binary=:all: -r "$release_dir/requirements-pi.lock"
+fi
 # Check this app's dependency closure, excluding unrelated desktop Python tools
 # inherited from --system-site-packages that a blanket pip check would include.
-"$release_dir/.venv/bin/python" "$release_dir/scripts/check-pi-runtime.py"
+"$release_dir/.venv/bin/python" -I "$release_dir/scripts/check-pi-runtime.py"
 install -d -o "$kiosk_uid" -g "$kiosk_gid" -m 0700 /var/lib/maintenance-kiosk
 
 groups_to_add=()

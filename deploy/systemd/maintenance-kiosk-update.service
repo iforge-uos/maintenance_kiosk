@@ -1,0 +1,17 @@
+[Unit]
+Description=Check GitHub for a maintenance kiosk update before startup
+After=network.target
+Before=maintenance-kiosk.service maintenance-kiosk-worker.service maintenance-kiosk-hardware.service lightdm.service
+ConditionPathExists=/etc/maintenance-kiosk/boot-update.json
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 -I /usr/local/lib/maintenance-kiosk/update-pi.py
+RemainAfterExit=yes
+TimeoutStartSec=180
+TimeoutStartFailureMode=kill
+KillMode=control-group
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

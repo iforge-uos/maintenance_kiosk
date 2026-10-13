@@ -71,7 +71,58 @@ ssh -L 5000:127.0.0.1:5000 YOUR_PI_USER@YOUR_PI_HOSTNAME.local
 
 Then open <http://127.0.0.1:5000> on the Mac. Stop any local Mac copy using that port first. The kiosk has no login; keep its server bound to loopback.
 
-### Update the app
+### Automatic updates at boot
+
+Use this option to check a GitHub branch each time you switch on or reboot the Pi. The example uses **`codex/restore-kiosk-style`**, the branch that contains this kiosk version. Only commits pushed to GitHub can reach the Pi.
+
+Do this once in a terminal **on the Pi**, as the same normal user who installed the kiosk. These commands assume the original checkout is `~/maintenance_kiosk`. Change that path if you installed it elsewhere. Check that `git status --short` is empty and `git branch --show-current` shows `codex/restore-kiosk-style` before you continue. Save any local edits first.
+
+```sh
+cd ~/maintenance_kiosk &&
+git pull --ff-only origin codex/restore-kiosk-style &&
+bash scripts/install-pi.sh &&
+bash scripts/enable-pi-boot-update.sh --branch codex/restore-kiosk-style
+```
+
+Wait for the success message. Then reboot:
+
+```sh
+sudo reboot
+```
+
+The setup enables `maintenance-kiosk-update.service` for future boots. It does not run an update immediately. At boot, the service checks GitHub before the kiosk starts. It allows up to 50 seconds for the network to become available. The whole update attempt has a 180-second limit. A check with a working connection and no new commit usually takes a few seconds. The kiosk can take longer to open while the update check runs. There are no further automatic checks until the next boot.
+
+When a new commit is available, the service checks the update and prepares a release from that exact commit. It checks Python dependencies and opens Flask pages with temporary test data under the normal Pi user. It then selects the new release before the kiosk starts. These checks do not send notifications or change your maintenance records.
+
+If the Pi is offline, or an update fails its checks, the Pi starts the installed release. The same rule applies if the checkout has changes to tracked files, is on a different branch, or cannot accept a fast-forward update. The service does not reset local changes or delete untracked files. It does not install OS or Python packages at each boot.
+
+Keep the original checkout at the same path and on the selected branch. Records, settings, credentials, and queued deliveries stay in `/var/lib/maintenance-kiosk`. Keep old release directories in `/opt/maintenance-kiosk/releases/`; a new release can use the Python environment from an older release.
+
+Automatic updates cover application code and content that can use the installed dependencies and deployment configuration. If dependency files, OS setup, services, browser scripts, or updater files change, the service keeps the installed release and records that a manual installation is required. Use the manual update procedure below, then run the enable command again.
+
+To check the setup and the latest boot:
+
+```sh
+systemctl is-enabled maintenance-kiosk-update.service
+journalctl -b -u maintenance-kiosk-update.service --no-pager
+readlink -f /opt/maintenance-kiosk/current
+```
+
+The first command must show `enabled`. The second shows the update result for this boot. The last shows the installed release path. Test the updater at the next reboot. Do not start the updater manually while the kiosk is running; it refuses to change a running installation.
+
+For a private repository, configure unattended, read-only GitHub access for the normal Pi user. Cloud environment access does not transfer to the Pi. A read-only SSH deploy key is one option. Add GitHub to that user's SSH known hosts during setup. A password prompt or an SSH agent that starts after login cannot provide access at boot. Use an HTTPS or SSH repository URL without an embedded token or password.
+
+To stop future automatic updates, run:
+
+```sh
+sudo systemctl disable maintenance-kiosk-update.service
+```
+
+The kiosk still starts automatically. This command does not interrupt an update that is already in progress.
+
+To select a different branch, first check out that branch in the original checkout. Pull its commits and run the manual installer. Then run `bash scripts/enable-pi-boot-update.sh --branch YOUR_BRANCH`, with the exact branch name. Do not only change the branch in the checkout; the updater checks that it matches the configured branch.
+
+### Update the app manually
 
 In the original Git checkout, check that `git status --short` is empty and you are on `codex/restore-kiosk-style`. Preserve any local edits before continuing. Then run:
 
@@ -79,11 +130,17 @@ In the original Git checkout, check that `git status --short` is empty and you a
 cd ~/maintenance_kiosk
 git status --short
 git branch --show-current
-git pull --ff-only origin codex/restore-kiosk-style
+git pull --ff-only origin codex/restore-kiosk-style &&
 bash scripts/install-pi.sh
 ```
 
 The installer deploys the checked-out commit and restarts the services. It preserves `/var/lib/maintenance-kiosk`, rejects changes to tracked files, and excludes untracked files. If Git reports conflicts or a non-fast-forward update, stop and resolve them without resetting away your changes.
+
+If you use automatic updates, refresh their setup after a manual installation:
+
+```sh
+bash scripts/enable-pi-boot-update.sh --branch codex/restore-kiosk-style
+```
 
 ### Back up records and credentials
 
@@ -105,6 +162,7 @@ The installer does not import an older checkout's `instance/` directory. If you 
 From SSH or Ctrl+Alt+F2, stop automatic app startup and remove the installer's display configuration. This retains the application and data:
 
 ```sh
+sudo systemctl disable maintenance-kiosk-update.service
 sudo systemctl disable --now maintenance-kiosk maintenance-kiosk-worker maintenance-kiosk-hardware
 sudo rm -f /etc/lightdm/lightdm.conf.d/90-maintenance-kiosk.conf /etc/systemd/system/lightdm.service.d/90-maintenance-kiosk.conf
 sudo rm -f /usr/share/xsessions/maintenance-kiosk.desktop
