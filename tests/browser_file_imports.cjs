@@ -81,6 +81,18 @@ server.stderr.on('data', chunk => {log += chunk;});
   const file = (name, content, mimeType = 'text/plain') => ({name, mimeType, buffer: Buffer.from(content)});
   const secret = name => page.locator(`.secret-control[data-secret-name="${name}"]`);
   const importInput = name => page.locator(`input[type="file"][data-file-import="${name}"]`);
+  const browseFile = async (kind, label, payload, container = page) => {
+    const button = container.getByRole('button', {name: `Browse storage for ${label}`, exact: true});
+    assert.equal(await button.getAttribute('data-file-browse'), kind);
+    const chooserEvent = page.waitForEvent('filechooser');
+    await button.click();
+    const chooser = await chooserEvent;
+    assert.equal(chooser.isMultiple(), false, 'Each import must select one file');
+    assert.equal(await chooser.element().getAttribute('data-file-import'), kind);
+    assert.equal(await chooser.element().getAttribute('aria-label'), `Choose ${label} file`);
+    assert.equal(await chooser.element().isVisible(), false, 'The named button opens the hidden file input');
+    await chooser.setFiles(payload);
+  };
   const waitInput = async (locator, value) => {
     await locator.evaluate((input, expected) => new Promise((resolve, reject) => {
       const start = performance.now();
@@ -116,12 +128,16 @@ server.stderr.on('data', chunk => {log += chunk;});
   };
   const noOverflow = async () => {
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > 800 || document.body.scrollWidth > 800), false);
-    for (const input of await page.locator('input[type="file"][data-file-import]').all()) {
-      if (!await input.isVisible()) continue;
-      await input.scrollIntoViewIfNeeded();
-      const box = await input.boundingBox();
-      assert.ok(box && box.x >= 0 && box.x + box.width <= 801, 'Import control must fit the 800 px screen');
-      assert.ok((await input.getAttribute('aria-label') || '').trim(), 'Import control needs an accessible name');
+    const buttons = await page.locator('button[data-file-browse]').all();
+    assert.ok(buttons.length, 'The section needs a Browse storage button');
+    for (const button of buttons) {
+      if (!await button.isVisible()) continue;
+      await button.scrollIntoViewIfNeeded();
+      const box = await button.boundingBox();
+      assert.ok(box && box.x >= 0 && box.x + box.width <= 801, 'Browse storage must fit the 800 px screen');
+      assert.ok(box.height >= 44, 'Browse storage must have a touch target at least 44 px tall');
+      assert.match(await button.getAttribute('aria-label') || '', /^Browse storage for \S/);
+      assert.equal(await button.innerText(), 'Browse storage');
     }
   };
   const screenshot = async (name, control) => {
@@ -166,15 +182,15 @@ server.stderr.on('data', chunk => {log += chunk;});
   await noOverflow();
 
   const writesBeforeImport = writes.length;
-  await importInput('spreadsheet_id').setInputFiles(file('spreadsheet.txt', `\uFEFFhttps://docs.google.com/spreadsheets/d/${workbook}/edit#gid=0\r\n`));
+  await browseFile('spreadsheet_id', 'Workbook ID', file('spreadsheet.txt', `\uFEFFhttps://docs.google.com/spreadsheets/d/${workbook}/edit#gid=0\r\n`));
   await waitInput(page.getByLabel('Workbook ID', {exact: true}), workbook);
   assert.equal((await snapshot()).settings.google.spreadsheet_id, 'previous-workbook-123456789');
-  await secret('google_oauth_client').locator('input[type="file"]').setInputFiles(file('client.json', `\uFEFF${oauth}`, 'application/json'));
+  await browseFile('google_oauth_client', 'Google OAuth client JSON', file('client.json', `\uFEFF${oauth}`, 'application/json'));
   await page.waitForFunction(marker => document.querySelector('[data-secret-name="google_oauth_client"] textarea').value.includes(marker), secrets[0]);
   assert.equal(writes.length, writesBeforeImport, 'Choosing files must not send their content to the server');
   assert.equal(await page.getByLabel('Enable Google Sheets synchronization', {exact: true}).isChecked(), false);
   assert.equal(await page.getByLabel('Connection method', {exact: true}).inputValue(), 'service_account');
-  console.log('PASS BOM Google JSON and workbook URL files fill only their selected fields without sending requests');
+  console.log('PASS Browse storage opens the single-file chooser; Google JSON and workbook URL files fill only their selected fields without sending requests');
 
   for (const control of ['#home-button', '#back-button']) {
     await page.locator(control).click();
@@ -296,7 +312,7 @@ server.stderr.on('data', chunk => {log += chunk;});
   const discordControl = secret('discord:maintenance');
   const discordInput = discordControl.locator('input[type="password"]');
   const beforeWebhookWrites = writes.length;
-  await discordControl.locator('input[type="file"]').setInputFiles(file('webhook.txt', `\uFEFF${webhook}\r\n`));
+  await browseFile('discord_webhook', 'Discord webhook URL', file('webhook.txt', `\uFEFF${webhook}\r\n`), discordControl);
   await waitInput(discordInput, webhook);
   assert.equal(writes.length, beforeWebhookWrites);
   assert.equal(await secret('discord:reports').locator('input[type="password"]').inputValue(), '');
@@ -328,6 +344,13 @@ server.stderr.on('data', chunk => {log += chunk;});
   await secret('discord:maintenance').waitFor();
   assert.equal(await secret('discord:maintenance').locator('input[type="password"]').inputValue(), '');
   assert.equal(await secret('discord:maintenance').locator('.badge').innerText(), 'Stored');
+  await page.getByRole('button', {name: '+ Add destination', exact: true}).click();
+  const newDestination = page.locator('.secret-control[data-secret-name^="discord:"]').last();
+  assert.equal(await newDestination.getByRole('button', {name: 'Browse storage for Discord webhook URL', exact: true}).isDisabled(), true);
+  assert.equal(await newDestination.locator('input[type="file"]').isDisabled(), true);
+  await saveSettings();
+  assert.equal(await newDestination.getByRole('button', {name: 'Browse storage for Discord webhook URL', exact: true}).isDisabled(), false);
+  console.log('PASS new Discord destinations enable Browse storage only after Save settings');
   await assertNoLeaks();
   assert.equal((await snapshot()).jobs.length, 0);
   assert.deepEqual(externalRequests, []);

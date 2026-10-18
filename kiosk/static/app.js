@@ -116,8 +116,12 @@
     const currentForm=form;
     let sequence=0,activeRead=null;
     const status=el('small',{'aria-live':'polite'});
-    const picker=el('input',{type:'file',accept:kind.startsWith('google_')?'.json,application/json':'.txt,.json,text/plain,application/json','aria-label':`Choose ${label} file`,'data-file-import':kind});
-    const wrapper=el('label',{class:'file-import'},el('span',{class:'field-label'},`Choose ${label} file`),picker,el('small',{},`${help} Maximum file size: 64 KB.`),status);
+    const picker=el('input',{type:'file',hidden:true,accept:kind.startsWith('google_')?'.json,application/json':'.txt,.json,text/plain,application/json','aria-label':`Choose ${label} file`,'data-file-import':kind});
+    const browse=button('Browse storage',()=>{
+      if(savingSettings){notify('Wait for settings to finish saving.',true);return;}
+      if(!picker.disabled)picker.click();
+    },'dark file-browse',{'aria-label':`Browse storage for ${label}`,'data-file-browse':kind});
+    const wrapper=el('div',{class:'file-import'},el('span',{class:'field-label'},`Load ${label} from a file`),picker,browse,el('small',{},'Select a file from this device or a mounted USB drive.'),el('small',{},`${help} Maximum file size: 64 KB.`),status);
     const current=token=>token===sequence&&wrapper.isConnected&&form===currentForm;
     picker.addEventListener('change',async()=>{
       if(savingSettings){picker.value='';notify('Wait for settings to finish saving.',true);return;}
@@ -144,7 +148,7 @@
     return {
       node:wrapper,
       cancel(){sequence++;if(activeRead)pendingFileReads.delete(activeRead);activeRead=null;picker.value='';status.textContent='';onReading(false);},
-      setDisabled(disabled){picker.disabled=disabled;}
+      setDisabled(disabled){picker.disabled=disabled;browse.disabled=disabled;}
     };
   }
   function workbookField() {

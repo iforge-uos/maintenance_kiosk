@@ -37,10 +37,10 @@ The app requests Sheets access, read-only Drive metadata access for ownership/fo
 To load your downloaded OAuth client file:
 
 1. Open **Settings → Google storage**.
-2. Under **Google OAuth client JSON**, select **Choose file**. Select the JSON file that you downloaded from Google Cloud.
+2. Under **Google OAuth client JSON**, select **Browse storage**. Select the JSON file that you downloaded from Google Cloud.
 3. Select **Store credential** for that control. This saves the credential on the kiosk.
 4. Set **Connection method** to **Google account (OAuth)**. Set the intended account email.
-5. Enter the **Workbook ID**, or use its **Choose file** control to load a text or JSON file. A full Google Sheets URL in the file also works.
+5. Enter the **Workbook ID**, or use its **Browse storage** control to load a text or JSON file. A full Google Sheets URL in the file also works.
 6. Select **Save settings**.
 7. Select **Connect Google account**. Sign in with the intended account and complete Google's consent steps.
 8. Open **Settings → Testing**. Select **Check Google connection** before you enable synchronization.
@@ -53,7 +53,7 @@ OAuth refresh credentials are stored server-side. Do not paste tokens into ordin
 
 Create a service account in the enabled Google Cloud project and obtain its JSON key using the organization’s normal credential process. Share the existing spreadsheet with the service account’s email as **Editor**. The human account continues to own the workbook. If configuring a Drive folder check, grant the service account appropriate access to that folder as well.
 
-Select **Service account** as the connection method. Under **Service account JSON**, select **Choose file**, select the JSON key, then select **Store credential**. Save the settings and check the Google connection. A service account does not become `threedprintingiforge@gmail.com` merely because that email is configured as the expected owner. Creating a workbook under unrelated credentials is not a substitute for the requested ownership.
+Select **Service account** as the connection method. Under **Service account JSON**, select **Browse storage**, select the JSON key, then select **Store credential**. Save the settings and check the Google connection. A service account does not become `threedprintingiforge@gmail.com` merely because that email is configured as the expected owner. Creating a workbook under unrelated credentials is not a substitute for the requested ownership.
 
 ### Files for credentials and workbook IDs
 
@@ -67,7 +67,7 @@ The **Workbook ID** control accepts a `.txt` or `.json` file with one value:
 
 Replace `VALUE` with your workbook ID or URL. The app takes the ID from a supported Google Sheets URL. Select **Save settings** to apply the loaded ID. Loading the ID does not replace other fields, such as technician names or semester information. Your other unsaved settings stay in the form.
 
-The file picker reads files on the device that runs the browser. On the Pi, select a local file or a file on a mounted USB drive. To select a file on your Mac, first open the Pi app through the [SSH tunnel](RASPBERRY_PI_SETUP.md#3-maintain-or-troubleshoot-it). Then use the file picker in the Mac browser. **Store credential** saves it on the Pi.
+Select **Browse storage** to open the system file picker. On the Pi touchscreen, browse the Pi folders or a mounted USB drive, select the file, then select **Open**. Select **Store credential** or **Save settings** to save the loaded value. The file picker reads storage on the device that runs the browser. To select a file on your Mac, first open the Pi app through the [SSH tunnel](RASPBERRY_PI_SETUP.md#3-maintain-or-troubleshoot-it). Then use the file picker in the Mac browser. **Store credential** saves it on the Pi.
 
 A loaded credential stays in browser memory until you select **Store credential**. It is not included in browser drafts or ordinary settings exports. File selection does not enable an integration, contact Google or Discord, or send a test message. Keep the source credential files private.
 
@@ -93,7 +93,7 @@ To load the webhook from a file:
 
 1. Open **Settings → Discord webhooks**.
 2. Add a destination. Set its name, notification events, and optional printer filter. Save the settings before you store a webhook for a new destination.
-3. Under that destination's **Discord webhook URL**, select **Choose file**. Select its text or JSON file.
+3. Under that destination's **Discord webhook URL**, select **Browse storage**. Select its text or JSON file.
 4. Select **Store credential** for that destination.
 5. Open **Settings → Testing**. Select the destination and send a test Discord message. Confirm that it arrives in the correct channel.
 6. Enable the destination and Discord notifications when you are ready. Save the settings.

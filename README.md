@@ -50,7 +50,7 @@ The web app does not start the delivery or GPIO worker automatically. Run one de
 4. Open **Settings → Testing**. Run the non-sending checks, then individually run any desired Google write, email, or Discord test. Sending tests contact the selected destination and are clearly labelled.
 5. Use mock trigger/offline/recovery checks in cloud development. Physical input and LED checks need a Raspberry Pi; a simulation is not a hardware pass.
 
-Settings includes **Choose file** controls for Google credential JSON, a workbook ID or Google Sheets URL, and each Discord webhook URL. Load a file, then select **Store credential** for a secret or **Save settings** for a workbook ID. File imports preserve your other settings and do not enable integrations or send messages. See [file formats and setup steps](docs/setup.md#files-for-credentials-and-workbook-ids).
+Settings includes **Browse storage** buttons for Google credential JSON, a workbook ID or Google Sheets URL, and each Discord webhook URL. Load a file, then select **Store credential** for a secret or **Save settings** for a workbook ID. File imports preserve your other settings and do not enable integrations or send messages. See [file formats and setup steps](docs/setup.md#files-for-credentials-and-workbook-ids).
 
 Google synchronization uses `Printers`, `Weekly_Maintenance`, `Reactive_Maintenance`, and `Activity_Log` tabs. Give staff viewing access and make record corrections through the kiosk. Do not reorder headers or manually alter managed records. Local persistence and notification delivery do not depend on a successful Sheets request.
 
