@@ -10,6 +10,54 @@ import secrets
 from flask import Flask, jsonify, redirect, render_template, request, session, url_for
 
 
+def _validate_google_credential(name: str, value: str) -> None:
+    """Check imported or pasted credentials without exposing their contents."""
+    from urllib.parse import urlsplit
+
+    try:
+        parsed = json.loads(value)
+    except (json.JSONDecodeError, RecursionError):
+        raise ValueError("Google credentials must be valid JSON.") from None
+    if not isinstance(parsed, dict):
+        raise ValueError("Google credentials must contain a JSON object.")
+
+    def has_fields(data, fields):
+        return isinstance(data, dict) and all(
+            isinstance(data.get(key), str) and data[key].strip() for key in fields
+        )
+
+    token_uri = "https://oauth2.googleapis.com/token"
+    if name == "google_service_account":
+        if parsed.get("type") != "service_account":
+            raise ValueError("Select a service account credential file.")
+        if not has_fields(parsed, ("client_email", "private_key", "token_uri")):
+            raise ValueError("The service account JSON is missing its connection fields.")
+        if parsed["token_uri"] != token_uri:
+            raise ValueError("Use the original Google credential file with Google's HTTPS token endpoint.")
+    elif name == "google_oauth_client":
+        client_types = [key for key in ("web", "installed") if key in parsed]
+        if len(client_types) != 1:
+            raise ValueError("Select an OAuth client JSON file downloaded from Google.")
+        client = parsed[client_types[0]]
+        if not has_fields(client, ("client_id", "client_secret", "auth_uri", "token_uri")):
+            raise ValueError("The OAuth client JSON is missing its connection fields.")
+        try:
+            authorization = urlsplit(client["auth_uri"])
+        except ValueError:
+            raise ValueError("Use the original OAuth client file with Google's HTTPS endpoints.") from None
+        if (client["token_uri"] != token_uri or authorization.scheme != "https"
+                or authorization.netloc != "accounts.google.com"):
+            raise ValueError("Use the original OAuth client file with Google's HTTPS endpoints.")
+    elif name == "google_oauth_token":
+        # google-auth's Credentials.to_json() omits type; accept that saved format.
+        if parsed.get("type", "authorized_user") != "authorized_user":
+            raise ValueError("Select an authorized user token JSON file.")
+        if not has_fields(parsed, ("client_id", "client_secret", "refresh_token")):
+            raise ValueError("The authorized user JSON is missing its connection fields.")
+        if parsed.get("token_uri", token_uri) != token_uri:
+            raise ValueError("Use the original Google credential file with Google's HTTPS token endpoint.")
+
+
 def create_app(config: dict | None = None) -> Flask:
     app = Flask(__name__)
     app.config.update(
@@ -117,29 +165,13 @@ def create_app(config: dict | None = None) -> Flask:
         if not isinstance(value, str):
             raise ValueError("Credential value must be text; use an empty value to remove it.")
         if name.startswith("google_") and value:
-            try:
-                parsed = json.loads(value)
-            except json.JSONDecodeError:
-                raise ValueError("Google credentials must be valid JSON.") from None
-            if not isinstance(parsed, dict):
-                raise ValueError("Google credentials must contain a JSON object.")
-            if name == "google_service_account" and parsed.get("type") != "service_account":
-                raise ValueError("Select a service account credential file.")
-            if name == "google_oauth_client" and not ("web" in parsed or "installed" in parsed):
-                raise ValueError("Select an OAuth client JSON file downloaded from Google.")
-            if name == "google_oauth_client":
-                from urllib.parse import urlsplit
-                client = parsed.get("web") or parsed.get("installed")
-                if not isinstance(client, dict) or not all(isinstance(client.get(key), str) and client[key] for key in ("client_id", "client_secret", "auth_uri", "token_uri")):
-                    raise ValueError("The OAuth client JSON is missing its connection fields.")
-                authorization = urlsplit(client["auth_uri"])
-                if client["token_uri"] != "https://oauth2.googleapis.com/token" or authorization.scheme != "https" or authorization.netloc != "accounts.google.com":
-                    raise ValueError("Use the original OAuth client file with Google's HTTPS endpoints.")
+            _validate_google_credential(name, value)
         if name.startswith("discord:") and value:
-            from urllib.parse import urlsplit
-            url = urlsplit(value)
-            if url.scheme != "https" or url.hostname not in {"discord.com", "discordapp.com"} or not url.path.startswith("/api/webhooks/") or url.username or url.password:
-                raise ValueError("Use an HTTPS Discord webhook URL.")
+            from .integrations import IntegrationError, _discord_url
+            try:
+                _discord_url(value)
+            except IntegrationError:
+                raise ValueError("Use an HTTPS Discord webhook URL with its ID and token.") from None
         service.set_secret(name, value)
         return jsonify(secret_status=service.secret_status())
 

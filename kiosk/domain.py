@@ -6,7 +6,7 @@ import json
 import math
 from pathlib import Path
 import re
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 from uuid import uuid4
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -373,7 +373,12 @@ class KioskService:
             return True
         if name.startswith("discord:"):
             before, after = urlparse(previous), urlparse(replacement)
-            return (before.scheme, before.netloc, before.path.rsplit("/", 1)[0]) == (after.scheme, after.netloc, after.path.rsplit("/", 1)[0])
+            def destination(parsed):
+                return (
+                    parsed.scheme, parsed.netloc, parsed.path.rstrip("/").rsplit("/", 1)[0],
+                    parse_qs(parsed.query).get("thread_id"),
+                )
+            return destination(before) == destination(after)
         try:
             before, after = json.loads(previous), json.loads(replacement)
             if name == "google_service_account":
@@ -400,8 +405,17 @@ class KioskService:
             except (ValueError, TypeError):
                 raise ValueError("Google credential must contain a valid JSON object.") from None
         if value and name.startswith("discord:"):
-            parsed = urlparse(value)
-            if parsed.scheme != "https" or parsed.hostname not in {"discord.com", "discordapp.com", "canary.discord.com", "ptb.discord.com"} or parsed.username or parsed.password or not re.fullmatch(r"/api(?:/v\d+)?/webhooks/\d+/[A-Za-z0-9._-]+", parsed.path) or parsed.query or parsed.fragment:
+            try:
+                parsed = urlparse(value)
+                port = parsed.port
+            except ValueError:
+                raise ValueError("Enter a Discord HTTPS webhook URL.") from None
+            query = parse_qs(parsed.query, keep_blank_values=True)
+            if (parsed.scheme != "https" or parsed.hostname not in {"discord.com", "discordapp.com", "canary.discord.com", "ptb.discord.com"}
+                    or parsed.username or parsed.password or port not in (None, 443) or parsed.fragment
+                    or not re.fullmatch(r"/api(?:/v\d+)?/webhooks/\d+/[A-Za-z0-9._-]+/?", parsed.path)
+                    or any(key not in {"wait", "thread_id"} for key in query)
+                    or ("thread_id" in query and (len(query["thread_id"]) != 1 or not query["thread_id"][0].isdigit()))):
                 raise ValueError("Enter a Discord HTTPS webhook URL.")
         with self.store.locked():
             secrets = self._secrets()

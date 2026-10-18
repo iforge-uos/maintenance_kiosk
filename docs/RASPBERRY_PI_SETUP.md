@@ -44,12 +44,14 @@ After reboot, the touchscreen opens <http://127.0.0.1:5000> automatically. Open 
 Google and notification accounts need credentials that an installer cannot create for you:
 
 1. In Google Drive, sign in as **`threedprintingiforge@gmail.com`** and create the maintenance spreadsheet. This account should own it.
-2. Enable the **Google Sheets API** and **Google Drive API** in Google Cloud. Create a service account and download its JSON key. Share the spreadsheet with that service account's email as **Editor**. Keep staff as Viewers; edit records through the kiosk.
-3. In **Settings → Google**, enter the spreadsheet ID, select service-account authentication, and save the JSON in its dedicated credential control. See [Google setup](setup.md#google-drive-and-sheets) for details and the OAuth alternative.
-4. In **Settings → Discord**, add each channel destination and save its webhook URL in its credential control. In **Settings → Email**, enter SMTP settings and save the password separately.
+2. Enable the **Google Sheets API** and **Google Drive API** in Google Cloud. Create a web application OAuth client and download its JSON file. Follow [Google setup](setup.md#oauth-as-the-owner) to set the consent screen and callback URL. A service account is also supported. Keep staff as Viewers; edit records through the kiosk.
+3. Open **Settings → Google storage**. Under **Google OAuth client JSON**, select **Choose file**, select the downloaded JSON, then select **Store credential**. Set **Connection method** to **Google account (OAuth)**. Enter the **Workbook ID**, or load a text or JSON file with its ID or Google Sheets URL. Save the settings. Select **Connect Google account** and complete consent with the intended Google account.
+4. Open **Settings → Discord webhooks**. Add a destination for each channel. Save a new destination before you store its credential. Under **Discord webhook URL**, select **Choose file** to load its text or JSON file, then select **Store credential**. In **Settings → Email notifications**, enter SMTP settings and store the password separately.
 5. In **Settings → Testing**, check the Google connection, then run the explicit Sheets write, email, and Discord tests you want. Confirm messages arrive before enabling production notifications and Google synchronization.
 
 Local maintenance records work without these connections. Pending deliveries remain on the Pi during an outage. No PostgreSQL is needed.
+
+File selection uses the device that runs the browser. On the Pi, use local files or a mounted USB drive. To use files on your Mac, open the Pi app through the SSH tunnel below and select them in the Mac browser. Stored credentials stay on the Pi. Use UTF-8 files of no more than 64 KiB each; see [accepted file formats](setup.md#files-for-credentials-and-workbook-ids). Imports do not enable integrations or send test messages. They preserve other settings, including technician names and semester information.
 
 For physical buttons and LEDs, configure the **`gpiozero`** hardware backend and pin mapping in Settings. Pin numbers are **BCM GPIO numbers**, not physical header positions. The installer supplies the OS GPIO driver; no pins are driven by the default configuration. Check the wiring, then use the bounded physical input and LED tests before relying on automatic maintenance triggers. See [GPIO setup](setup.md#gpio-on-the-raspberry-pi).
 

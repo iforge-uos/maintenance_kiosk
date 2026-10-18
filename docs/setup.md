@@ -23,7 +23,7 @@ Set the same value in each worker terminal or service. Keep runtime files outsid
 
 1. Sign in to Google Drive as `threedprintingiforge@gmail.com` and create a dedicated maintenance spreadsheet. Place it in the desired Drive folder.
 2. In Google Cloud, enable the **Google Sheets API** and **Google Drive API** in the project used by the credentials.
-3. In Settings → Google, set the account email, spreadsheet ID, optional folder ID, and authentication mode. The spreadsheet ID is the segment between `/d/` and `/edit` in its URL; the folder ID is the final ID in the folder URL.
+3. Open **Settings → Google storage**. Set the account email, **Workbook ID**, optional folder ID, and **Connection method**. The workbook ID is the text between `/d/` and `/edit` in the Google Sheets URL. You can type the ID or load it from a file as described below. The folder ID is the final ID in a Drive folder URL.
 4. Choose an authentication method below. Save and test before enabling production sync.
 
 The initial app connects an existing workbook; entering an email address does not connect the account or create a spreadsheet. Folder/workbook IDs are configured directly rather than selected with a Drive file picker. Verify actual ownership and sharing in Drive. The app’s connection check reports what the connected credentials can access.
@@ -32,7 +32,20 @@ The initial app connects an existing workbook; entering an email address does no
 
 Create a Google OAuth client for a web application, configure the consent screen, and authorize the dedicated account. If the consent screen is in testing mode, add `threedprintingiforge@gmail.com` as an allowed test user; testing-mode refresh tokens may expire and need reconnection.
 
-The app requests Sheets access, read-only Drive metadata access for ownership/folder checks, and account email identity. Download the OAuth client JSON and save it in the Settings secret control for the Google OAuth client. Register the callback URL used by the app as an authorized redirect URI; the local default is `http://127.0.0.1:5000/auth/google/callback`. Use the Settings Google authorization action and complete consent with the intended account. Keep the exact scheme/host/port consistent between the browser, the client configuration, and callback. Cloud forwarded URLs may need their own registered HTTPS redirect URI.
+The app requests Sheets access, read-only Drive metadata access for ownership/folder checks, and account email identity. Register the callback URL used by the app as an authorized redirect URI. The local default is `http://127.0.0.1:5000/auth/google/callback`. Keep the scheme, host, and port the same in the browser, client configuration, and callback. Cloud forwarded URLs can need their own registered HTTPS redirect URI.
+
+To load your downloaded OAuth client file:
+
+1. Open **Settings → Google storage**.
+2. Under **Google OAuth client JSON**, select **Choose file**. Select the JSON file that you downloaded from Google Cloud.
+3. Select **Store credential** for that control. This saves the credential on the kiosk.
+4. Set **Connection method** to **Google account (OAuth)**. Set the intended account email.
+5. Enter the **Workbook ID**, or use its **Choose file** control to load a text or JSON file. A full Google Sheets URL in the file also works.
+6. Select **Save settings**.
+7. Select **Connect Google account**. Sign in with the intended account and complete Google's consent steps.
+8. Open **Settings → Testing**. Select **Check Google connection** before you enable synchronization.
+
+Loading an OAuth client file does not connect the Google account. The consent step is still necessary. The advanced **Authorized-user OAuth JSON** control can also load an existing authorized-user JSON file.
 
 OAuth refresh credentials are stored server-side. Do not paste tokens into ordinary settings fields, commit client/token files, or copy them into documentation.
 
@@ -40,7 +53,23 @@ OAuth refresh credentials are stored server-side. Do not paste tokens into ordin
 
 Create a service account in the enabled Google Cloud project and obtain its JSON key using the organization’s normal credential process. Share the existing spreadsheet with the service account’s email as **Editor**. The human account continues to own the workbook. If configuring a Drive folder check, grant the service account appropriate access to that folder as well.
 
-Select service-account mode and place the JSON key in its dedicated Settings secret control. A service account does not become `threedprintingiforge@gmail.com` merely because that email is configured as the expected owner. Creating a workbook under unrelated credentials is not a substitute for the requested ownership.
+Select **Service account** as the connection method. Under **Service account JSON**, select **Choose file**, select the JSON key, then select **Store credential**. Save the settings and check the Google connection. A service account does not become `threedprintingiforge@gmail.com` merely because that email is configured as the expected owner. Creating a workbook under unrelated credentials is not a substitute for the requested ownership.
+
+### Files for credentials and workbook IDs
+
+Use UTF-8 text files of no more than **64 KiB** each. Google credentials must be JSON files in the format supplied by Google. Do not use a spreadsheet export or a Google account password file.
+
+The **Workbook ID** control accepts a `.txt` or `.json` file with one value:
+
+- A workbook ID or a full Google Sheets URL on its own.
+- A text line in the form `GOOGLE_SPREADSHEET_ID=VALUE`.
+- A JSON object with one matching key: `spreadsheet_id`, `spreadsheetId`, or `url`.
+
+Replace `VALUE` with your workbook ID or URL. The app takes the ID from a supported Google Sheets URL. Select **Save settings** to apply the loaded ID. Loading the ID does not replace other fields, such as technician names or semester information. Your other unsaved settings stay in the form.
+
+The file picker reads files on the device that runs the browser. On the Pi, select a local file or a file on a mounted USB drive. To select a file on your Mac, first open the Pi app through the [SSH tunnel](RASPBERRY_PI_SETUP.md#3-maintain-or-troubleshoot-it). Then use the file picker in the Mac browser. **Store credential** saves it on the Pi.
+
+A loaded credential stays in browser memory until you select **Store credential**. It is not included in browser drafts or ordinary settings exports. File selection does not enable an integration, contact Google or Discord, or send a test message. Keep the source credential files private.
 
 ### First sync
 
@@ -58,7 +87,18 @@ Use the email test in Settings → Testing with a chosen recipient. A successful
 
 ## Discord
 
-Create a webhook in each desired Discord channel using Discord’s channel integration controls. In Settings → Discord, add a named destination with a stable ID, enable it, select events and optional printer IDs, and save its URL in the destination’s secret control. The URL contains a credential: do not put it in ordinary notes, exports, source code, or screenshots.
+Create a webhook in each desired Discord channel using Discord's channel integration controls. The URL contains a credential. Keep it out of ordinary notes, exports, source code, and screenshots.
+
+To load the webhook from a file:
+
+1. Open **Settings → Discord webhooks**.
+2. Add a destination. Set its name, notification events, and optional printer filter. Save the settings before you store a webhook for a new destination.
+3. Under that destination's **Discord webhook URL**, select **Choose file**. Select its text or JSON file.
+4. Select **Store credential** for that destination.
+5. Open **Settings → Testing**. Select the destination and send a test Discord message. Confirm that it arrives in the correct channel.
+6. Enable the destination and Discord notifications when you are ready. Save the settings.
+
+Use one file for each destination. A `.txt` file can contain the webhook URL alone or one line in the form `DISCORD_WEBHOOK_URL=VALUE`. Replace `VALUE` with the webhook URL. A `.json` file can contain an object with one matching key: `webhook_url`, `discord_webhook_url`, or `url`. Each file must meet the [file limits above](#files-for-credentials-and-workbook-ids). You can still paste a URL into the credential control.
 
 Each destination can receive fault, escalation, resolution, or weekly-completion events as supported by the UI. A blank printer filter means all printers. Use Settings → Testing to send a labelled message to that destination. Verify its arrival in the intended channel. Test messages suppress mentions.
 
