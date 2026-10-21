@@ -3,8 +3,10 @@ from __future__ import annotations
 
 import importlib.util
 import io
+import json
 import os
 from pathlib import Path
+import shutil
 import signal
 import subprocess
 import sys
@@ -368,6 +370,56 @@ def test_isolated_smoke_check_runs_real_app_without_touching_configured_data(tmp
     assert result.returncode == 0, result.stdout + result.stderr
     assert snapshot(live) == before
     assert not (tmp_path / "instance").exists()
+
+
+@pytest.mark.parametrize("runuser_directory", ["usr/sbin", "sbin"])
+def test_user_runner_finds_sbin_command_without_inheriting_the_callers_path(tmp_path, monkeypatch, runuser_directory):
+    """Exercise the real user=True subprocess path without changing OS users."""
+    system = tmp_path / "system"
+    # Keep the production directory choices, but isolate lookup from host tools.
+    # Removing sbin from SYSTEM_PATH must make this launch fail as it does on Pi.
+    search_path = os.pathsep.join(
+        str(system / entry.lstrip("/")) for entry in boot_update.SYSTEM_PATH.split(os.pathsep)
+    )
+    monkeypatch.setattr(boot_update, "SYSTEM_PATH", search_path)
+    env_command = shutil.which("env")
+    assert env_command is not None
+    (system / "usr/bin").mkdir(parents=True)
+    (system / "usr/bin/env").symlink_to(env_command)
+    requested_user = tmp_path / "requested-user.json"
+    runuser = system / runuser_directory / "runuser"
+    runuser.parent.mkdir(parents=True)
+    runuser.write_text(
+        f"#!{sys.executable}\n"
+        "import json, os, sys\n"
+        "from pathlib import Path\n"
+        f"Path({str(requested_user)!r}).write_text(json.dumps(sys.argv[1:5]))\n"
+        "assert sys.argv[1:5] == ['-u', 'kiosk_test', '--', 'env']\n"
+        "os.execvpe(sys.argv[4], sys.argv[4:], os.environ)\n"
+    )
+    runuser.chmod(0o755)
+    # A caller-supplied PATH must not override the updater's fixed system PATH.
+    inherited = tmp_path / "caller-bin"
+    inherited.mkdir()
+    (inherited / "runuser").write_text("#!/bin/sh\nexit 98\n")
+    (inherited / "runuser").chmod(0o755)
+    monkeypatch.setenv("PATH", str(inherited))
+    account = SimpleNamespace(pw_uid=1000, pw_dir=str(tmp_path / "kiosk-home"), pw_name="kiosk_test")
+    monkeypatch.setattr(boot_update.pwd, "getpwnam", lambda name: account)
+    updater = boot_update.Updater({"checkout": str(tmp_path), "user": "kiosk_test", "branch": "kiosk-test"})
+
+    output = updater.run(
+        [sys.executable, "-I", "-c", "import json, os; print(json.dumps(dict(os.environ)))"],
+        user=True,
+    )
+
+    assert json.loads(requested_user.read_text()) == ["-u", "kiosk_test", "--", "env"]
+    environment = json.loads(output)
+    assert environment["PATH"] == search_path
+    assert environment["HOME"] == account.pw_dir
+    assert environment["USER"] == "kiosk_test"
+    assert environment["GIT_TERMINAL_PROMPT"] == "0"
+    assert environment["GIT_ASKPASS"] == "/bin/false"
 
 
 @pytest.mark.skipif(not Path("/proc").exists(), reason="Checks Linux process state")

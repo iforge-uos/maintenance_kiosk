@@ -124,6 +124,12 @@ The kiosk still starts automatically. This command does not interrupt an update 
 
 To select a different branch, first check out that branch in the original checkout. Pull its commits and run the manual installer. Then run `bash scripts/enable-pi-boot-update.sh --branch YOUR_BRANCH`, with the exact branch name. Do not only change the branch in the checkout; the updater checks that it matches the configured branch.
 
+### If an update cannot find `runuser`
+
+An older updater can report `Update skipped: [Errno 2] No such file or directory: 'runuser'`. It leaves `/usr/sbin` out of its command search path. Raspberry Pi OS normally stores `runuser` in this directory. This error occurs before the GitHub check.
+
+Use the manual update procedure below, including the command to enable boot updates again. Then reboot. Pulling the fix alone does not replace the installed updater in `/usr/local/lib/maintenance-kiosk/`. The manual installer must also apply the updated setup files before the enable script can finish. Existing records and settings in `/var/lib/maintenance-kiosk` are retained.
+
 ### Update the app manually
 
 In the original Git checkout, check that `git status --short` is empty and you are on `codex/restore-kiosk-style`. Preserve any local edits before continuing. Then run:

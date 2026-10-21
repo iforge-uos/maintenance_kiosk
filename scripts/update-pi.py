@@ -26,6 +26,8 @@ import time
 BASE = Path("/opt/maintenance-kiosk")
 CONFIG = Path("/etc/maintenance-kiosk/boot-update.json")
 LOCK = Path("/run/lock/maintenance-kiosk-deploy.lock")
+# Keep a fixed system search path, including runuser's location on Raspberry Pi OS.
+SYSTEM_PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 SERVICES = ("maintenance-kiosk", "maintenance-kiosk-worker", "maintenance-kiosk-hardware", "lightdm")
 # A manual install must apply changes to these files before boot updates resume.
 CONTRACT = (
@@ -97,7 +99,7 @@ class Updater:
         if remaining <= 0:
             raise UpdateError("Boot update time limit reached.")
         environment = {
-            "PATH": "/usr/local/bin:/usr/bin:/bin", "LANG": "C.UTF-8",
+            "PATH": SYSTEM_PATH, "LANG": "C.UTF-8",
             "HOME": self.account.pw_dir if user else "/root",
             "USER": self.config["user"] if user else "root",
             "GIT_TERMINAL_PROMPT": "0", "GCM_INTERACTIVE": "never",
