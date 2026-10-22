@@ -49,6 +49,18 @@ Loading an OAuth client file does not connect the Google account. The consent st
 
 OAuth refresh credentials are stored server-side. Do not paste tokens into ordinary settings fields, commit client/token files, or copy them into documentation.
 
+### If Google rejects sign-in
+
+If Google shows `400: invalid_request`, open **Error details** and read the full error message. The error code alone does not identify the cause. You can open Google Cloud on your Mac or another computer while the Pi stays in full-screen mode. **Authorized redirect URIs** is a setting inside the Google Cloud client page. Use these checks for the standard Pi installation:
+
+1. In Google Cloud, open **Google Auth Platform → Clients**. Select the client used by the kiosk. For this setup, use a **Web application** client.
+2. Under **Authorized redirect URIs**, register `http://127.0.0.1:5000/auth/google/callback`. This is a redirect URI, not an authorized JavaScript origin. The Pi browser starts the kiosk at `http://127.0.0.1:5000`. If you use another browser address, its scheme, host, and port must match the registered callback.
+3. If you selected a different client, download its JSON file. In the kiosk, use **Browse storage** under **Google OAuth client JSON**, then select **Store credential**. Do not change the values inside the downloaded file.
+4. If the app is in testing mode, open **Google Auth Platform → Audience** and add `threedprintingiforge@gmail.com` as a test user.
+5. Return to the kiosk Settings page and select **Connect Google account** again. Do not reuse an old Google sign-in tab.
+
+An error on Google's page occurs before the kiosk receives the sign-in result. If Google accepts consent but the kiosk then reports a connection failure, update the kiosk to the latest version and start sign-in again. The kiosk must retain the one-use verification value from the start of sign-in until the token exchange. Older versions did not retain this value with the current Google OAuth library.
+
 ### Service account alternative
 
 Create a service account in the enabled Google Cloud project and obtain its JSON key using the organization’s normal credential process. Share the existing spreadsheet with the service account’s email as **Editor**. The human account continues to own the workbook. If configuring a Drive folder check, grant the service account appropriate access to that folder as well.

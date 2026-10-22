@@ -234,17 +234,26 @@ def create_app(config: dict | None = None) -> Flask:
         flow = Flow.from_client_config(
             json.loads(raw), scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive.metadata.readonly", "openid", "https://www.googleapis.com/auth/userinfo.email"],
             redirect_uri=url_for("google_callback", _external=True),
+            autogenerate_code_verifier=True,
         )
         authorization_url, state = flow.authorization_url(access_type="offline", prompt="consent", login_hint=service.get_settings()["google"]["account_email"])
         session["google_oauth_state"] = state
         session["google_oauth_redirect"] = flow.redirect_uri
+        session["google_oauth_verifier"] = flow.code_verifier
         return redirect(authorization_url)
 
     @app.get("/auth/google/callback")
     def google_callback():
-        expected = session.pop("google_oauth_state", "")
+        expected = session.get("google_oauth_state", "")
         actual = request.args.get("state", "")
         if not expected or not hmac.compare_digest(expected, actual):
+            return jsonify(error="Google connection session expired. Start again from Settings."), 400
+        # Consume only the matching flow. An older tab must not cancel a newer
+        # sign-in, and the verifier must be reused with its original challenge.
+        session.pop("google_oauth_state")
+        redirect_uri = session.pop("google_oauth_redirect", None)
+        code_verifier = session.pop("google_oauth_verifier", None)
+        if not redirect_uri or not code_verifier:
             return jsonify(error="Google connection session expired. Start again from Settings."), 400
         if request.args.get("error") or not request.args.get("code"):
             return redirect("/settings?google_error=cancelled")
@@ -254,7 +263,8 @@ def create_app(config: dict | None = None) -> Flask:
             flow = Flow.from_client_config(
                 json.loads(service.get_secret("google_oauth_client")),
                 scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive.metadata.readonly", "openid", "https://www.googleapis.com/auth/userinfo.email"],
-                redirect_uri=session.pop("google_oauth_redirect"),
+                redirect_uri=redirect_uri, state=expected,
+                code_verifier=code_verifier, autogenerate_code_verifier=False,
             )
             flow.fetch_token(code=request.args["code"], timeout=(5, 20))
             identity_response = AuthorizedSession(flow.credentials, refresh_timeout=20).get("https://www.googleapis.com/oauth2/v2/userinfo", timeout=15)
