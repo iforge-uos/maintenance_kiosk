@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 import fcntl
 from pathlib import Path
 
+from .domain import technician_name
 from .integrations import GoogleSheets, IntegrationError, send_discord, send_email
 
 
@@ -114,6 +115,8 @@ class SyncWorker:
         if current:
             payload["current_state"] = current
         settings = self.service.get_settings()
+        if "technician_name" not in payload:
+            payload["technician_name"] = technician_name(settings, payload.get("record", {}).get("technician", ""))
         if settings["google"].get("spreadsheet_id"):
             payload["spreadsheet_id"] = settings["google"]["spreadsheet_id"]
         return payload

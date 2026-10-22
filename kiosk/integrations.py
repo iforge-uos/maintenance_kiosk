@@ -106,7 +106,7 @@ def build_message(payload, test=False):
         ("Occurred", payload.get("occurred_at") or record.get("updated_at")),
         ("State at event", record.get("state")),
         ("Availability at event", record.get("availability")),
-        ("Technician", record.get("technician")),
+        ("Technician", payload.get("technician_name", record.get("technician"))),
         ("Issue", record.get("symptom") or record.get("summary")),
         ("Action", record.get("fix_summary") or record.get("action_taken")),
         ("Notes", record.get("note")),

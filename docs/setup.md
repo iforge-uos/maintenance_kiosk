@@ -95,6 +95,8 @@ Keep the kiosk as the only record editor. Share the workbook with staff as Viewe
 
 In Settings → Email, configure SMTP host, port, TLS mode, username, sender, recipients, event rules, and enabled state. Save the password with the SMTP password secret control. For Gmail SMTP, use an authorized app password where the account policy supports it; Google Sheets OAuth does not automatically authorize Gmail SMTP.
 
+Email and Discord alerts use the **Name** from **Settings → Technicians** when a record contains a technician ID. New queued alerts keep the name captured when the maintenance event was saved. Older queued alerts use the current technician list, including archived entries. Values that do not match a configured technician ID stay as recorded.
+
 Use the email test in Settings → Testing with a chosen recipient. A successful SMTP response means the server accepted the message, not that it reached an inbox; confirm receipt and check spam/filtering separately. TLS verification remains enabled. Production email is delivered by the worker, with pending/failed status retained locally.
 
 ## Discord

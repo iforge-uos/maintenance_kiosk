@@ -24,6 +24,11 @@ def now():
     return datetime.now(timezone.utc).isoformat()
 
 
+def technician_name(settings, technician):
+    """Resolve a saved ID for display, retaining names and other legacy values."""
+    return next((item["name"] for item in settings["technicians"] if item["id"] == technician), technician)
+
+
 def _text(value, label, required=False, limit=10000):
     if not isinstance(value, str) or len(value) > limit or (required and not value.strip()):
         raise ValueError(f"{label} must be {'non-empty ' if required else ''}text, at most {limit} characters.")
@@ -489,6 +494,7 @@ class KioskService:
             if {key: value for key, value in record.items() if key not in ignored} == {key: value for key, value in previous.items() if key not in ignored}:
                 return deepcopy(previous)
         event = {"change_id": str(uuid4()), "event_type": event_type, "occurred_at": record["updated_at"], "actor": record.get("technician", ""), "record": record}
+        event["technician_name"] = technician_name(state["settings"], record.get("technician", ""))
         self._commit(state, {"type": "record", "event": event, "jobs": self._jobs_for(state["settings"], event)})
         return deepcopy(record)
 
